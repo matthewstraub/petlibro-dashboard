@@ -181,6 +181,19 @@ describe("history router", () => {
     });
     expect(Array.isArray(result)).toBe(true);
   });
+
+  it("exportAll returns dailyLogs, hourlyLogs, and monthlyLogs", async () => {
+    const { ctx } = createAuthContext(991);
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.history.exportAll();
+    expect(result).toHaveProperty("dailyLogs");
+    expect(result).toHaveProperty("hourlyLogs");
+    expect(result).toHaveProperty("monthlyLogs");
+    expect(Array.isArray(result.dailyLogs)).toBe(true);
+    expect(Array.isArray(result.hourlyLogs)).toBe(true);
+    expect(Array.isArray(result.monthlyLogs)).toBe(true);
+  });
 });
 
 describe("PetlibroAPI class", () => {

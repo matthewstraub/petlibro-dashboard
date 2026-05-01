@@ -1,11 +1,10 @@
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,7 +13,9 @@ import {
   Area,
   AreaChart,
 } from "recharts";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Download, FileJson, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -43,11 +44,39 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function convertToCSV(data: any[], columns: { key: string; label: string }[]): string {
+  const header = columns.map((c) => c.label).join(",");
+  const rows = data.map((row) =>
+    columns.map((c) => {
+      const val = row[c.key];
+      if (val === null || val === undefined) return "";
+      if (typeof val === "string" && val.includes(",")) return `"${val}"`;
+      return val;
+    }).join(",")
+  );
+  return [header, ...rows].join("\n");
+}
+
 export default function Trends() {
   const weekly = trpc.history.weekly.useQuery();
   const monthly = trpc.history.monthly.useQuery({ months: 2 });
   const yearly = trpc.history.yearly.useQuery();
   const hourly = trpc.history.hourly.useQuery();
+  const exportAll = trpc.history.exportAll.useQuery(undefined, { enabled: false });
+
+  const [exporting, setExporting] = useState(false);
 
   const weeklyData = (weekly.data || []).map((d: any) => ({
     date: formatDate(d.date),
@@ -84,6 +113,76 @@ export default function Trends() {
 
   const isLoading = weekly.isLoading || monthly.isLoading || yearly.isLoading || hourly.isLoading;
   const noData = weeklyData.length === 0 && monthlyData.length === 0 && yearlyData.length === 0;
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const result = await exportAll.refetch();
+      if (!result.data) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const { dailyLogs } = result.data;
+      const columns = [
+        { key: "date", label: "Date" },
+        { key: "totalMl", label: "Total mL" },
+        { key: "drinkingCount", label: "Drinking Sessions" },
+        { key: "totalDrinkingTime", label: "Total Drinking Time (s)" },
+        { key: "avgDrinkDuration", label: "Avg Session Duration (s)" },
+      ];
+
+      const csvData = dailyLogs.map((d: any) => ({
+        date: typeof d.date === "string" ? d.date.split("T")[0] : new Date(d.date).toISOString().split("T")[0],
+        totalMl: d.totalMl,
+        drinkingCount: d.drinkingCount,
+        totalDrinkingTime: d.totalDrinkingTime,
+        avgDrinkDuration: d.avgDrinkDuration,
+      }));
+
+      const csv = convertToCSV(csvData, columns);
+      const dateStr = new Date().toISOString().split("T")[0];
+      downloadFile(csv, `petlibro-water-data-${dateStr}.csv`, "text/csv");
+      toast.success("CSV exported successfully");
+    } catch (error) {
+      toast.error("Failed to export data");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportJSON = async () => {
+    setExporting(true);
+    try {
+      const result = await exportAll.refetch();
+      if (!result.data) {
+        toast.error("No data to export");
+        return;
+      }
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        dailyLogs: result.data.dailyLogs.map((d: any) => ({
+          date: typeof d.date === "string" ? d.date.split("T")[0] : new Date(d.date).toISOString().split("T")[0],
+          totalMl: d.totalMl,
+          drinkingCount: d.drinkingCount,
+          totalDrinkingTime: d.totalDrinkingTime,
+          avgDrinkDuration: d.avgDrinkDuration,
+        })),
+        hourlyAverages: result.data.hourlyLogs,
+        monthlyAverages: result.data.monthlyLogs,
+      };
+
+      const json = JSON.stringify(exportData, null, 2);
+      const dateStr = new Date().toISOString().split("T")[0];
+      downloadFile(json, `petlibro-water-data-${dateStr}.json`, "application/json");
+      toast.success("JSON exported successfully");
+    } catch (error) {
+      toast.error("Failed to export data");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -127,9 +226,33 @@ export default function Trends() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Trends</h1>
-        <p className="text-muted-foreground mt-1">Historical water consumption analysis</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Trends</h1>
+          <p className="text-muted-foreground mt-1">Historical water consumption analysis</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={exporting}
+            className="gap-2"
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportJSON}
+            disabled={exporting}
+            className="gap-2"
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileJson className="h-3.5 w-3.5" />}
+            Export JSON
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="weekly" className="space-y-4">

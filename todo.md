@@ -18,3 +18,5 @@
 - [x] Token auto-refresh: automatically re-login when API returns code 1009 (token expired)
 - [x] Device events endpoint: fetch recent events/errors from /data/event/deviceEventsV2
 - [x] Device events UI: show a log of recent fountain events on the dashboard
+- [x] Data export feature: CSV and JSON export buttons on the Trends page for downloading historical data
+- [ ] Scheduled sync task: configure recurring task to auto-collect fountain data every few hours

@@ -222,6 +222,16 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         return await getDailyLogs(ctx.user.id, input.startDate, input.endDate);
       }),
+
+    exportAll: protectedProcedure.query(async ({ ctx }) => {
+      // Get all daily logs (up to 3 years back)
+      const endDate = new Date().toISOString().split("T")[0];
+      const startDate = new Date(Date.now() - 1095 * 86400000).toISOString().split("T")[0];
+      const dailyLogs = await getDailyLogs(ctx.user.id, startDate, endDate);
+      const hourlyLogs = await getHourlyAverages(ctx.user.id, 365);
+      const monthlyLogs = await getMonthlyAverages(ctx.user.id, 36);
+      return { dailyLogs, hourlyLogs, monthlyLogs };
+    }),
   }),
 
   // Scheduled task endpoint
