@@ -118,6 +118,22 @@ export const appRouter = router({
       return { devices };
     }),
 
+    events: protectedProcedure.query(async ({ ctx }) => {
+      const creds = await getCredentials(ctx.user.id);
+      if (!creds || !creds.deviceSn) {
+        return { events: [], error: "No credentials or device configured", fetchFailed: false };
+      }
+
+      try {
+        const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+        const events = await api.getDeviceEvents(creds.deviceSn);
+        return { events, error: null, fetchFailed: false };
+      } catch (error: any) {
+        console.error("[fountain.events] Failed to fetch events:", error.message);
+        return { events: [], error: "Failed to fetch events from Petlibro API", fetchFailed: true };
+      }
+    }),
+
     // Sync current data to database
     syncToday: protectedProcedure.mutation(async ({ ctx }) => {
       const creds = await getCredentials(ctx.user.id);

@@ -117,6 +117,17 @@ describe("fountain router", () => {
     expect((result as any).error).toContain("No credentials");
   });
 
+  it("returns error when no credentials configured for events", async () => {
+    const { ctx } = createAuthContext(990);
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.fountain.events();
+    expect(result).toHaveProperty("error");
+    expect((result as any).error).toContain("No credentials");
+    expect(result.events).toEqual([]);
+    expect(result.fetchFailed).toBe(false);
+  });
+
   it("rejects unauthenticated access to fountain.liveData", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
@@ -191,5 +202,21 @@ describe("PetlibroAPI class", () => {
     const api1 = getOrCreateAPI("cache@test.com", "pass", "US");
     const api2 = getOrCreateAPI("cache@test.com", "pass", "US");
     expect(api1).toBe(api2);
+  });
+
+  it("getDeviceEvents returns empty array on failure", async () => {
+    const { PetlibroAPI } = await import("./petlibro-api");
+    const api = new PetlibroAPI("test@test.com", "pass", "US");
+    // Without login, this should fail gracefully and return empty array
+    const events = await api.getDeviceEvents("fake-sn");
+    expect(Array.isArray(events)).toBe(true);
+    expect(events.length).toBe(0);
+  });
+
+  it("DeviceEvent interface is exported", async () => {
+    const mod = await import("./petlibro-api");
+    // Verify the module exports PetlibroAPI with getDeviceEvents method
+    const api = new mod.PetlibroAPI("test@test.com", "pass", "US");
+    expect(typeof api.getDeviceEvents).toBe("function");
   });
 });

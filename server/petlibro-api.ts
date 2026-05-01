@@ -68,6 +68,17 @@ export interface FountainStatus {
   waterState: boolean;
 }
 
+export interface DeviceEvent {
+  eventId?: string;
+  eventType?: string;
+  eventName?: string;
+  content?: string;
+  deviceSn?: string;
+  createTime?: string;
+  timestamp?: number;
+  [key: string]: any;
+}
+
 export class PetlibroAPI {
   private client: AxiosInstance;
   private token: string | null = null;
@@ -152,10 +163,19 @@ export class PetlibroAPI {
 
       // Handle token expiration (code 1009 = NOT_YET_LOGIN)
       if (respData?.code === 1009 || respData?.code === 401) {
+        console.log(`[PetlibroAPI] Token expired (code ${respData.code}) on ${endpoint}, refreshing...`);
         this.token = null;
-        await this.ensureAuth();
+        const refreshed = await this.login();
+        if (!refreshed) {
+          throw new Error("Token refresh failed - could not re-authenticate");
+        }
         const retryResponse = await this.client.post(endpoint, data);
-        return retryResponse.data?.data || retryResponse.data;
+        const retryData = retryResponse.data;
+        if (retryData?.code !== 0 && retryData?.code !== undefined) {
+          console.error(`[PetlibroAPI] Retry failed on ${endpoint}:`, retryData?.msg);
+          return null;
+        }
+        return retryData?.data || retryData;
       }
 
       if (respData?.code !== 0 && respData?.code !== undefined) {
@@ -165,9 +185,13 @@ export class PetlibroAPI {
 
       return respData?.data || respData;
     } catch (error: any) {
-      if (error?.response?.status === 401) {
+      if (error?.response?.status === 401 || error?.response?.data?.code === 1009) {
+        console.log(`[PetlibroAPI] HTTP 401 on ${endpoint}, refreshing token...`);
         this.token = null;
-        await this.ensureAuth();
+        const refreshed = await this.login();
+        if (!refreshed) {
+          throw new Error("Token refresh failed - could not re-authenticate");
+        }
         const retryResponse = await this.client.post(endpoint, data);
         return retryResponse.data?.data || retryResponse.data;
       }
@@ -211,6 +235,23 @@ export class PetlibroAPI {
     } catch (error: any) {
       console.error("[PetlibroAPI] getDrinkWaterData error:", error.message);
       return null;
+    }
+  }
+
+  async getDeviceEvents(deviceSn: string): Promise<DeviceEvent[]> {
+    try {
+      const data = await this.post("/data/event/deviceEventsV2", {
+        id: deviceSn,
+        deviceSn,
+      });
+      // The API may return an array directly or nested in a list property
+      if (Array.isArray(data)) return data;
+      if (data?.list && Array.isArray(data.list)) return data.list;
+      if (data?.events && Array.isArray(data.events)) return data.events;
+      return [];
+    } catch (error: any) {
+      console.error("[PetlibroAPI] getDeviceEvents error:", error.message);
+      return [];
     }
   }
 

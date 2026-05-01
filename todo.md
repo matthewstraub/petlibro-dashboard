@@ -15,3 +15,6 @@
 - [x] Elegant dark theme with refined typography and premium aesthetic
 - [x] Dashboard layout with sidebar navigation
 - [x] Scheduled data collection endpoint for daily log persistence
+- [x] Token auto-refresh: automatically re-login when API returns code 1009 (token expired)
+- [x] Device events endpoint: fetch recent events/errors from /data/event/deviceEventsV2
+- [x] Device events UI: show a log of recent fountain events on the dashboard

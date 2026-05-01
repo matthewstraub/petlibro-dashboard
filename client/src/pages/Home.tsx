@@ -17,6 +17,8 @@ import {
   Minus,
   Filter,
   Sparkles,
+  Activity,
+  Info,
 } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
@@ -25,6 +27,9 @@ export default function Home() {
   const { user } = useAuth();
   const liveData = trpc.fountain.liveData.useQuery(undefined, {
     refetchInterval: 60000,
+  });
+  const eventsQuery = trpc.fountain.events.useQuery(undefined, {
+    refetchInterval: 120000,
   });
   const syncMutation = trpc.fountain.syncToday.useMutation({
     onSuccess: () => {
@@ -372,6 +377,68 @@ export default function Home() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Device Events Log */}
+      <Card className="glass-card">
+        <CardHeader>
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            Recent Fountain Events
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {eventsQuery.isLoading ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
+          ) : eventsQuery.data?.fetchFailed ? (
+            <div className="flex items-center gap-3 text-amber-400 py-4">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="text-sm">Failed to fetch events from the Petlibro API. Will retry automatically.</span>
+            </div>
+          ) : !eventsQuery.data?.events || eventsQuery.data.events.length === 0 ? (
+            <div className="flex items-center gap-3 text-muted-foreground py-4">
+              <Info className="h-4 w-4" />
+              <span className="text-sm">No recent events recorded. Events will appear here once your fountain reports activity.</span>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+              {eventsQuery.data.events.slice(0, 20).map((event: any, i: number) => (
+                <div
+                  key={event.eventId || i}
+                  className="flex items-start gap-3 py-2 border-b border-border/50 last:border-0"
+                >
+                  <div className="mt-0.5">
+                    <div className="h-2 w-2 rounded-full bg-primary/60" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {event.eventName || event.content || event.eventType || "Event"}
+                    </p>
+                    {event.content && event.eventName && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {event.content}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {event.createTime
+                      ? new Date(event.createTime).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })
+                      : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
