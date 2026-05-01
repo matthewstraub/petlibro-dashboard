@@ -1,0 +1,17 @@
+# Project TODO
+
+- [x] Petlibro API credential configuration (email, password, region input and storage)
+- [x] Petlibro API client (authenticate, fetch device data, drink water data)
+- [x] Database schema for daily water intake log and hourly breakdown
+- [x] Today's water consumption summary card (total mL, sessions, drinking time, avg duration)
+- [x] Yesterday's comparison panel (side-by-side with today)
+- [x] Daily water intake log persistence (record each day's totals to DB)
+- [x] Weekly trend chart (past 7 days bar/line chart)
+- [x] Monthly trend chart (daily consumption across current/past months)
+- [x] Yearly overview chart (monthly averages for past 12 months)
+- [x] Time-of-day heatmap or hourly bar chart
+- [x] Fountain status panel (water level %, filter days, cleaning days, online status)
+- [x] Maintenance reminder alerts (proactive notifications before thresholds)
+- [x] Elegant dark theme with refined typography and premium aesthetic
+- [x] Dashboard layout with sidebar navigation
+- [x] Scheduled data collection endpoint for daily log persistence

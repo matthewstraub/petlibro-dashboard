@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `daily_water_log` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `date` date NOT NULL,\n  `totalMl` float NOT NULL DEFAULT 0,\n  `drinkingCount` int NOT NULL DEFAULT 0,\n  `totalDrinkingTime` int NOT NULL DEFAULT 0,\n  `avgDrinkDuration` int NOT NULL DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `daily_water_log_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2oY192HK2UDLJrh.010ee5f69b05 --database a2xvfBCG42Unv8kYMPvVDq --execute CREATE TABLE `daily_water_log` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `date` date NOT NULL,\n  `totalMl` float NOT NULL DEFAULT 0,\n  `drinkingCount` int NOT NULL DEFAULT 0,\n  `totalDrinkingTime` int NOT NULL DEFAULT 0,\n  `avgDrinkDuration` int NOT NULL DEFAULT 0,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `daily_water_log_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 526
+}

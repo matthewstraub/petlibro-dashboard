@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `petlibro_credentials` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `email` varchar(320) NOT NULL,\n  `password` text NOT NULL,\n  `region` varchar(20) NOT NULL DEFAULT 'US',\n  `deviceSn` varchar(128),\n  `lastSyncAt` timestamp,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `petlibro_credentials_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2oY192HK2UDLJrh.010ee5f69b05 --database a2xvfBCG42Unv8kYMPvVDq --execute CREATE TABLE `petlibro_credentials` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `userId` int NOT NULL,\n  `email` varchar(320) NOT NULL,\n  `password` text NOT NULL,\n  `region` varchar(20) NOT NULL DEFAULT 'US',\n  `deviceSn` varchar(128),\n  `lastSyncAt` timestamp,\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `petlibro_credentials_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 120
+}
