@@ -249,6 +249,9 @@ export default function Home() {
             <div className="text-3xl font-bold tracking-tight">
               {drinkingTime}<span className="text-lg font-normal text-muted-foreground ml-1">sec</span>
             </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {Math.floor(drinkingTime / 60)}m {drinkingTime % 60}s
+            </div>
             <p className="text-sm text-muted-foreground mt-2">
               Cumulative time today
             </p>

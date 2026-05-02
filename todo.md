@@ -36,3 +36,4 @@
 - [x] Timezone feature: update cron sync and syncToday to use user's timezone for bucketing
 - [x] Timezone feature: shared timezone utility module (getLocalDateTime, getYesterdayLocal)
 - [x] Fix fl oz precision: show two decimal places (e.g., 1.47 oz) across all pages to match Petlibro iOS app
+- [x] Dashboard: show Total Drinking Time in both seconds and minutes:seconds format
