@@ -30,3 +30,8 @@
 - [x] Unit toggle: add mL / fl oz switch that persists and converts all water measurements across Dashboard and Trends pages
 - [x] Bug fix: Yearly chart X-axis shows "May 26" (a date) instead of month names like "May '26"
 - [x] Daily view tab: calendar date picker to select a day, show daily summary (total intake, sessions, time, avg duration) and hourly intake breakdown chart for that day
+- [x] Timezone feature (graceful): add timezone column to schema with fallback if column missing
+- [x] Timezone feature: create /api/migrate endpoint (CRON_SECRET protected) to add column safely
+- [x] Timezone feature: Settings UI with timezone selector and browser auto-detection
+- [x] Timezone feature: update cron sync and syncToday to use user's timezone for bucketing
+- [x] Timezone feature: shared timezone utility module (getLocalDateTime, getYesterdayLocal)

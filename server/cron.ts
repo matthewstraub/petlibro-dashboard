@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { getDb } from "./db";
-import { petlibroCredentials } from "../drizzle/schema";
 import { getOrCreateAPI } from "./petlibro-api";
-import { upsertDailyLog, upsertHourlyLog, updateLastSync } from "./db";
+import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials } from "./db";
+import { getLocalDateTime, getYesterdayLocal } from "./timezone";
+import { sql } from "drizzle-orm";
 
 /**
  * Register cron job endpoints.
@@ -32,13 +33,19 @@ export function registerCronRoutes(app: Express) {
         return;
       }
 
-      const allCreds = await db.select().from(petlibroCredentials);
+      // Get all user IDs from credentials table using a safe query
+      const allCredsResult = await db.execute(sql`
+        SELECT userId FROM petlibro_credentials WHERE deviceSn IS NOT NULL
+      `);
+      const userIds = ((allCredsResult as any)[0] || []).map((r: any) => r.userId);
       let synced = 0;
       let errors = 0;
 
-      for (const cred of allCreds) {
+      for (const userId of userIds) {
         try {
-          if (!cred.deviceSn) continue;
+          // Use getCredentials which gracefully handles missing timezone column
+          const cred = await getCredentials(userId);
+          if (!cred || !cred.deviceSn) continue;
 
           const api = getOrCreateAPI(cred.email, cred.password, cred.region);
           const drinkData = await api.getDrinkWaterData(cred.deviceSn);
@@ -48,7 +55,9 @@ export function registerCronRoutes(app: Express) {
             continue;
           }
 
-          const today = new Date().toISOString().split("T")[0];
+          // Use the user's configured timezone for date/hour bucketing
+          const userTz = cred.timezone || "America/New_York";
+          const { date: today, hour: currentHour } = getLocalDateTime(userTz);
 
           await upsertDailyLog({
             userId: cred.userId,
@@ -59,7 +68,6 @@ export function registerCronRoutes(app: Express) {
             avgDrinkDuration: drinkData.avgDrinkDuration || 0,
           });
 
-          const currentHour = new Date().getHours();
           await upsertHourlyLog({
             userId: cred.userId,
             date: new Date(today),
@@ -69,8 +77,8 @@ export function registerCronRoutes(app: Express) {
           });
 
           // Also save yesterday if available
-          const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
           if (drinkData.yesterdayTotalMl > 0) {
+            const yesterday = getYesterdayLocal(userTz);
             await upsertDailyLog({
               userId: cred.userId,
               date: new Date(yesterday),
@@ -85,7 +93,7 @@ export function registerCronRoutes(app: Express) {
           synced++;
         } catch (e) {
           errors++;
-          console.error(`[Cron] Failed to sync for user ${cred.userId}:`, e);
+          console.error(`[Cron] Failed to sync for user ${userId}:`, e);
         }
       }
 
@@ -93,6 +101,55 @@ export function registerCronRoutes(app: Express) {
     } catch (error: any) {
       console.error("[Cron] Sync failed:", error);
       res.status(500).json({ error: "Sync failed", message: error.message });
+    }
+  });
+
+  // Migration endpoint - adds timezone column if missing
+  // Protected by CRON_SECRET, can be triggered from browser
+  app.get("/api/migrate", async (req, res) => {
+    const secret = req.headers["x-cron-secret"] || req.query.secret;
+    const expectedSecret = process.env.CRON_SECRET;
+
+    if (!expectedSecret) {
+      res.status(500).json({ error: "CRON_SECRET not configured" });
+      return;
+    }
+
+    if (secret !== expectedSecret) {
+      res.status(401).json({ error: "Invalid secret" });
+      return;
+    }
+
+    try {
+      const db = await getDb();
+      if (!db) {
+        res.status(500).json({ error: "Database not available" });
+        return;
+      }
+
+      const migrations: string[] = [];
+
+      // Check if timezone column exists
+      const [cols] = await db.execute(sql`
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'petlibro_credentials' AND column_name = 'timezone'
+        AND table_schema = DATABASE()
+      `) as any;
+
+      if (!cols || cols.length === 0) {
+        await db.execute(sql`
+          ALTER TABLE petlibro_credentials 
+          ADD COLUMN timezone VARCHAR(64) NOT NULL DEFAULT 'America/New_York'
+        `);
+        migrations.push("Added timezone column to petlibro_credentials");
+      } else {
+        migrations.push("timezone column already exists (no-op)");
+      }
+
+      res.json({ success: true, migrations, timestamp: new Date().toISOString() });
+    } catch (error: any) {
+      console.error("[Migrate] Failed:", error);
+      res.status(500).json({ error: "Migration failed", message: error.message });
     }
   });
 

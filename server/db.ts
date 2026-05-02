@@ -57,8 +57,54 @@ export async function updateLastSignedIn(userId: number) {
 export async function getCredentials(userId: number) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(petlibroCredentials).where(eq(petlibroCredentials.userId, userId)).limit(1);
-  return result.length > 0 ? result[0] : null;
+  try {
+    // Use raw SQL to gracefully handle missing timezone column
+    const result = await db.execute(sql`
+      SELECT id, userId, email, password, region, deviceSn, lastSyncAt, createdAt, updatedAt,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'petlibro_credentials' AND column_name = 'timezone'
+          AND table_schema = DATABASE()
+        ) THEN timezone ELSE 'America/New_York' END as timezone
+      FROM petlibro_credentials WHERE userId = ${userId} LIMIT 1
+    `);
+    const rows = (result as any)[0];
+    if (!rows || rows.length === 0) return null;
+    const row = rows[0];
+    return {
+      id: row.id,
+      userId: row.userId,
+      email: row.email,
+      password: row.password,
+      region: row.region,
+      deviceSn: row.deviceSn,
+      timezone: row.timezone || "America/New_York",
+      lastSyncAt: row.lastSyncAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  } catch (e) {
+    // Fallback: if the dynamic SQL fails, try without timezone
+    const result = await db.execute(sql`
+      SELECT id, userId, email, password, region, deviceSn, lastSyncAt, createdAt, updatedAt
+      FROM petlibro_credentials WHERE userId = ${userId} LIMIT 1
+    `);
+    const rows = (result as any)[0];
+    if (!rows || rows.length === 0) return null;
+    const row = rows[0];
+    return {
+      id: row.id,
+      userId: row.userId,
+      email: row.email,
+      password: row.password,
+      region: row.region,
+      deviceSn: row.deviceSn,
+      timezone: "America/New_York",
+      lastSyncAt: row.lastSyncAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
 }
 
 export async function upsertCredentials(data: InsertPetlibroCredentials) {
@@ -94,6 +140,28 @@ export async function updateLastSync(userId: number) {
   await db.update(petlibroCredentials)
     .set({ lastSyncAt: new Date() })
     .where(eq(petlibroCredentials.userId, userId));
+}
+
+export async function updateTimezone(userId: number, timezone: string) {
+  const db = await getDb();
+  if (!db) return { success: false, error: "Database not available" };
+  try {
+    // Check if column exists first
+    const [cols] = await db.execute(sql`
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name = 'petlibro_credentials' AND column_name = 'timezone'
+      AND table_schema = DATABASE()
+    `) as any;
+    if (!cols || cols.length === 0) {
+      return { success: false, error: "Timezone column not yet migrated. Please run /api/migrate first." };
+    }
+    await db.execute(sql`
+      UPDATE petlibro_credentials SET timezone = ${timezone} WHERE userId = ${userId}
+    `);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Failed to update timezone" };
+  }
 }
 
 // ==================== Daily Water Log ====================

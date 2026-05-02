@@ -6,6 +6,7 @@ import {
   upsertCredentials,
   updateDeviceSn,
   updateLastSync,
+  updateTimezone,
   upsertDailyLog,
   getDailyLogs,
   getMonthlyAverages,
@@ -18,6 +19,7 @@ import {
 } from "./db";
 import { PetlibroAPI, getOrCreateAPI } from "./petlibro-api";
 import { hashPassword, verifyPassword, createSessionToken } from "./auth";
+import { getLocalDateTime, getYesterdayLocal } from "./timezone";
 
 export const appRouter = router({
   auth: router({
@@ -100,6 +102,7 @@ export const appRouter = router({
         email: creds.email,
         region: creds.region,
         deviceSn: creds.deviceSn,
+        timezone: creds.timezone || "America/New_York",
         lastSyncAt: creds.lastSyncAt,
         hasPassword: true,
       };
@@ -136,6 +139,16 @@ export const appRouter = router({
       .input(z.object({ deviceSn: z.string() }))
       .mutation(async ({ ctx, input }) => {
         await updateDeviceSn(ctx.user.id, input.deviceSn);
+        return { success: true };
+      }),
+
+    setTimezone: protectedProcedure
+      .input(z.object({ timezone: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const result = await updateTimezone(ctx.user.id, input.timezone);
+        if (!result.success) {
+          return { success: false, error: result.error };
+        }
         return { success: true };
       }),
   }),
@@ -211,7 +224,9 @@ export const appRouter = router({
         return { error: "Failed to fetch drink data" };
       }
 
-      const today = new Date().toISOString().split("T")[0];
+      // Use the user's configured timezone for date/hour bucketing
+      const userTz = creds.timezone || "America/New_York";
+      const { date: today, hour: currentHour } = getLocalDateTime(userTz);
 
       await upsertDailyLog({
         userId: ctx.user.id,
@@ -223,8 +238,8 @@ export const appRouter = router({
       });
 
       // Save yesterday's data too
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
       if (drinkData.yesterdayTotalMl > 0) {
+        const yesterday = getYesterdayLocal(userTz);
         await upsertDailyLog({
           userId: ctx.user.id,
           date: new Date(yesterday),
@@ -236,7 +251,6 @@ export const appRouter = router({
       }
 
       // Save hourly estimate
-      const currentHour = new Date().getHours();
       await upsertHourlyLog({
         userId: ctx.user.id,
         date: new Date(today),
