@@ -190,6 +190,9 @@ function DailyDetailView() {
                   {summary.totalDrinkingTime}
                   <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
                 </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {Math.floor(summary.totalDrinkingTime / 60)}m {summary.totalDrinkingTime % 60}s
+                </p>
               </CardContent>
             </Card>
             <Card className="glass-card">
@@ -201,6 +204,9 @@ function DailyDetailView() {
                 <p className="text-xl font-bold">
                   {summary.avgDrinkDuration}
                   <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {Math.floor(summary.avgDrinkDuration / 60)}m {summary.avgDrinkDuration % 60}s
                 </p>
               </CardContent>
             </Card>
