@@ -10,6 +10,7 @@ import Trends from "./pages/Trends";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import { useAuth } from "./hooks/useAuth";
+import { UnitProvider } from "./contexts/UnitContext";
 import { Loader2 } from "lucide-react";
 
 function AuthenticatedApp() {
@@ -44,10 +45,12 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
-        <TooltipProvider>
-          <Toaster />
-          <AuthenticatedApp />
-        </TooltipProvider>
+        <UnitProvider>
+          <TooltipProvider>
+            <Toaster />
+            <AuthenticatedApp />
+          </TooltipProvider>
+        </UnitProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

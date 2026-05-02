@@ -16,6 +16,7 @@ import {
 import { AlertTriangle, Download, FileJson, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useUnit } from "@/contexts/UnitContext";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -28,21 +29,23 @@ function formatMonth(monthStr: string) {
   return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+function CustomTooltipInner({ active, payload, label, unitLabel, convertFn }: any) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-xl">
         <p className="text-xs text-muted-foreground">{label}</p>
         {payload.map((entry: any, i: number) => (
           <p key={i} className="text-sm font-semibold" style={{ color: entry.color }}>
-            {entry.value?.toFixed(0)} {entry.name === "avgMl" || entry.name === "totalMl" ? "mL" : ""}
+            {entry.name === "avgMl" || entry.name === "totalMl"
+              ? `${convertFn(entry.value).toFixed(1)} ${unitLabel}`
+              : entry.value?.toFixed(1)}
           </p>
         ))}
       </div>
     );
   }
   return null;
-};
+}
 
 function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -70,6 +73,7 @@ function convertToCSV(data: any[], columns: { key: string; label: string }[]): s
 }
 
 export default function Trends() {
+  const { convert, label: unitLabel, unit, toggleUnit } = useUnit();
   const weekly = trpc.history.weekly.useQuery();
   const monthly = trpc.history.monthly.useQuery({ months: 2 });
   const yearly = trpc.history.yearly.useQuery();
@@ -80,20 +84,20 @@ export default function Trends() {
 
   const weeklyData = (weekly.data || []).map((d: any) => ({
     date: formatDate(d.date),
-    totalMl: d.totalMl,
+    totalMl: convert(d.totalMl),
     drinkingCount: d.drinkingCount,
   }));
 
   const monthlyData = (monthly.data || []).map((d: any) => ({
     date: formatDate(d.date),
-    totalMl: d.totalMl,
+    totalMl: convert(d.totalMl),
     drinkingCount: d.drinkingCount,
   }));
 
   const yearlyData = (yearly.data || []).map((d: any) => ({
     month: formatMonth(d.month),
-    avgMl: parseFloat(d.avgMl) || 0,
-    totalMl: parseFloat(d.totalMl) || 0,
+    avgMl: convert(parseFloat(d.avgMl) || 0),
+    totalMl: convert(parseFloat(d.totalMl) || 0),
     daysRecorded: parseInt(d.daysRecorded) || 0,
   }));
 
@@ -107,7 +111,7 @@ export default function Trends() {
   });
   const hourlyData = Array.from({ length: 24 }, (_, i) => ({
     hour: `${i.toString().padStart(2, "0")}:00`,
-    avgMl: hourlyMap.get(i)?.avgMl || 0,
+    avgMl: convert(hourlyMap.get(i)?.avgMl || 0),
     avgCount: hourlyMap.get(i)?.avgCount || 0,
   }));
 
@@ -235,6 +239,14 @@ export default function Trends() {
           <Button
             variant="outline"
             size="sm"
+            onClick={toggleUnit}
+            className="gap-1.5 text-xs"
+          >
+            {unit === "ml" ? "mL" : "fl oz"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleExportCSV}
             disabled={exporting}
             className="gap-2"
@@ -276,7 +288,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="date" stroke="oklch(0.6 0.02 220)" fontSize={12} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
                     <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[4, 4, 0, 0]} name="totalMl" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -304,7 +316,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="date" stroke="oklch(0.6 0.02 220)" fontSize={12} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
                     <Area
                       type="monotone"
                       dataKey="totalMl"
@@ -333,7 +345,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="month" stroke="oklch(0.6 0.02 220)" fontSize={12} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
                     <Bar dataKey="avgMl" fill="oklch(0.6 0.12 210)" radius={[4, 4, 0, 0]} name="avgMl" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -355,7 +367,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
                     <Bar dataKey="avgMl" fill="oklch(0.75 0.1 175)" radius={[3, 3, 0, 0]} name="avgMl" />
                   </BarChart>
                 </ResponsiveContainer>

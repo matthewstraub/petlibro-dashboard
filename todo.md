@@ -26,4 +26,5 @@
 - [x] Add Render deployment configuration (render.yaml, Dockerfile or build command)
 - [x] Add deployment documentation (README with TiDB, Render, Cloudflare setup instructions)
 - [x] Scheduled sync task: cron endpoint implemented (/api/cron/sync) + render.yaml config + documentation for setup
-- [ ] User action: Configure external cron job (Render Cron or cron-job.org) after deploying to call /api/cron/sync
+- [x] User action: Configure external cron job (Render Cron or cron-job.org) after deploying to call /api/cron/sync
+- [x] Unit toggle: add mL / fl oz switch that persists and converts all water measurements across Dashboard and Trends pages
