@@ -3,6 +3,9 @@ import { getDb } from "./db";
 import { petlibroCredentials } from "../drizzle/schema";
 import { getOrCreateAPI } from "./petlibro-api";
 import { upsertDailyLog, upsertHourlyLog, updateLastSync } from "./db";
+import { getLocalDateTime, getYesterdayLocal } from "./timezone";
+
+
 
 /**
  * Register cron job endpoints.
@@ -48,7 +51,9 @@ export function registerCronRoutes(app: Express) {
             continue;
           }
 
-          const today = new Date().toISOString().split("T")[0];
+          // Use the user's configured timezone for date/hour bucketing
+          const userTz = cred.timezone || "America/New_York";
+          const { date: today, hour: currentHour } = getLocalDateTime(userTz);
 
           await upsertDailyLog({
             userId: cred.userId,
@@ -59,7 +64,6 @@ export function registerCronRoutes(app: Express) {
             avgDrinkDuration: drinkData.avgDrinkDuration || 0,
           });
 
-          const currentHour = new Date().getHours();
           await upsertHourlyLog({
             userId: cred.userId,
             date: new Date(today),
@@ -69,8 +73,8 @@ export function registerCronRoutes(app: Express) {
           });
 
           // Also save yesterday if available
-          const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
           if (drinkData.yesterdayTotalMl > 0) {
+            const yesterday = getYesterdayLocal(userTz);
             await upsertDailyLog({
               userId: cred.userId,
               date: new Date(yesterday),

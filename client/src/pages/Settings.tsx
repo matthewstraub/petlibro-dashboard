@@ -7,7 +7,92 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Loader2, Key, Server, Wifi } from "lucide-react";
+import { CheckCircle, Loader2, Key, Server, Wifi, Globe } from "lucide-react";
+
+const COMMON_TIMEZONES = [
+  { value: "America/New_York", label: "Eastern Time (US)" },
+  { value: "America/Chicago", label: "Central Time (US)" },
+  { value: "America/Denver", label: "Mountain Time (US)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (US)" },
+  { value: "America/Anchorage", label: "Alaska Time" },
+  { value: "Pacific/Honolulu", label: "Hawaii Time" },
+  { value: "America/Toronto", label: "Eastern Time (Canada)" },
+  { value: "America/Vancouver", label: "Pacific Time (Canada)" },
+  { value: "Europe/London", label: "London (GMT/BST)" },
+  { value: "Europe/Paris", label: "Central Europe" },
+  { value: "Europe/Berlin", label: "Berlin" },
+  { value: "Asia/Tokyo", label: "Tokyo" },
+  { value: "Asia/Shanghai", label: "Shanghai" },
+  { value: "Asia/Kolkata", label: "India" },
+  { value: "Australia/Sydney", label: "Sydney" },
+  { value: "Australia/Melbourne", label: "Melbourne" },
+];
+
+function TimezoneCard({ currentTimezone, onSaved }: { currentTimezone: string; onSaved: () => void }) {
+  const [timezone, setTimezone] = useState(currentTimezone);
+  const setTimezoneMutation = trpc.credentials.setTimezone.useMutation({
+    onSuccess: () => {
+      toast.success("Timezone updated");
+      onSaved();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleSave = () => {
+    setTimezoneMutation.mutate({ timezone });
+  };
+
+  const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  return (
+    <Card className="glass-card">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Globe className="h-4 w-4 text-primary" />
+          Timezone
+        </CardTitle>
+        <CardDescription>
+          Set your local timezone so hourly data is bucketed correctly. Your browser detected: <code className="text-xs bg-muted px-1 py-0.5 rounded">{detectedTz}</code>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="timezone">Timezone</Label>
+          <Select value={timezone} onValueChange={setTimezone}>
+            <SelectTrigger className="bg-input/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COMMON_TIMEZONES.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>
+                  {tz.label} ({tz.value})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {detectedTz && detectedTz !== timezone && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setTimezone(detectedTz)}
+            className="text-xs text-primary"
+          >
+            Use detected timezone ({detectedTz})
+          </Button>
+        )}
+        <Button
+          onClick={handleSave}
+          disabled={setTimezoneMutation.isPending || timezone === currentTimezone}
+          className="gap-2"
+        >
+          {setTimezoneMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+          Save Timezone
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Settings() {
   const credentials = trpc.credentials.get.useQuery();
@@ -175,6 +260,11 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Timezone Setting */}
+      {credentials.data && (
+        <TimezoneCard currentTimezone={credentials.data.timezone} onSaved={() => credentials.refetch()} />
+      )}
 
       {/* Device Selection */}
       {testResult?.success && testResult.devices.length > 0 && (
