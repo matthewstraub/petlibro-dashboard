@@ -98,8 +98,25 @@ function DailyDetailView() {
 
   const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
 
-  // Build hourly chart data for the selected day
+  // Build hourly chart data from drinking sessions (preferred) or fall back to hourly_water_log
   const hourlyChartData = useMemo(() => {
+    // If we have session data, compute hourly breakdown from it for consistency with the timeline
+    if (sessions && sessions.length > 0) {
+      const hourlyMap = new Map<number, { totalMl: number; count: number }>();
+      for (const s of sessions) {
+        const hour = new Date(Number(s.sessionTime)).getHours();
+        const existing = hourlyMap.get(hour) || { totalMl: 0, count: 0 };
+        existing.totalMl += s.amountMl || 0;
+        existing.count += 1;
+        hourlyMap.set(hour, existing);
+      }
+      return Array.from({ length: 24 }, (_, i) => ({
+        hour: `${i.toString().padStart(2, "0")}:00`,
+        totalMl: convert(hourlyMap.get(i)?.totalMl || 0),
+        sessions: hourlyMap.get(i)?.count || 0,
+      }));
+    }
+    // Fallback: use hourly_water_log data from the server
     const hourlyMap = new Map<number, { totalMl: number; drinkingCount: number }>();
     (data?.hourly || []).forEach((h: any) => {
       hourlyMap.set(h.hour, { totalMl: h.totalMl, drinkingCount: h.drinkingCount });
@@ -109,7 +126,7 @@ function DailyDetailView() {
       totalMl: convert(hourlyMap.get(i)?.totalMl || 0),
       sessions: hourlyMap.get(i)?.drinkingCount || 0,
     }));
-  }, [data?.hourly, convert]);
+  }, [sessions, data?.hourly, convert]);
 
   const summary = data?.summary;
 
@@ -286,9 +303,9 @@ function DailyDetailView() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              {data?.hourly?.length === 0 && (
+              {(!sessions || sessions.length === 0) && (!data?.hourly || data.hourly.length === 0) && (
                 <p className="text-center text-sm text-muted-foreground mt-2">
-                  No hourly data recorded for this day. Hourly data is captured during each sync.
+                  No hourly data available for this day.
                 </p>
               )}
             </CardContent>
