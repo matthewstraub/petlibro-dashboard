@@ -30,6 +30,3 @@
 - [x] Unit toggle: add mL / fl oz switch that persists and converts all water measurements across Dashboard and Trends pages
 - [x] Bug fix: Yearly chart X-axis shows "May 26" (a date) instead of month names like "May '26"
 - [x] Daily view tab: calendar date picker to select a day, show daily summary (total intake, sessions, time, avg duration) and hourly intake breakdown chart for that day
-- [x] Timezone setting: add timezone column to petlibro_credentials table
-- [x] Timezone setting: add UI to Settings page for selecting timezone (IANA format)
-- [x] Timezone setting: update cron sync to bucket hourly data using user's local timezone

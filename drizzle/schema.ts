@@ -55,7 +55,6 @@ export const petlibroCredentials = mysqlTable("petlibro_credentials", {
   password: text("password").notNull(),
   region: varchar("region", { length: 20 }).notNull().default("US"),
   deviceSn: varchar("deviceSn", { length: 128 }),
-  timezone: varchar("timezone", { length: 64 }).notNull().default("America/New_York"),
   lastSyncAt: timestamp("lastSyncAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -96,14 +96,6 @@ export async function updateLastSync(userId: number) {
     .where(eq(petlibroCredentials.userId, userId));
 }
 
-export async function updateTimezone(userId: number, timezone: string) {
-  const db = await getDb();
-  if (!db) return;
-  await db.update(petlibroCredentials)
-    .set({ timezone })
-    .where(eq(petlibroCredentials.userId, userId));
-}
-
 // ==================== Daily Water Log ====================
 
 export async function upsertDailyLog(data: InsertDailyWaterLog) {
