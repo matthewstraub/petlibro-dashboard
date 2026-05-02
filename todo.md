@@ -43,3 +43,4 @@
 - [x] Add syncDrinkingSessions to cron and syncToday
 - [x] Add getDrinkingSessions query helper and tRPC endpoint
 - [x] Update Daily tab UI with session timeline matching iOS app logs view
+- [ ] Fix Daily tab: compute hourly bar chart from drinking_sessions data instead of hourly_water_log to match session timeline
