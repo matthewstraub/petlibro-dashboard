@@ -183,6 +183,42 @@ export async function upsertHourlyLog(data: InsertHourlyWaterLog) {
   }
 }
 
+export async function getHourlyLogsForDate(userId: number, date: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(hourlyWaterLog)
+    .where(and(
+      eq(hourlyWaterLog.userId, userId),
+      eq(hourlyWaterLog.date, date as any)
+    ))
+    .orderBy(hourlyWaterLog.hour);
+}
+
+export async function getDailyDetail(userId: number, date: string) {
+  const db = await getDb();
+  if (!db) return { summary: null, hourly: [] };
+
+  const dailyResult = await db.select().from(dailyWaterLog)
+    .where(and(
+      eq(dailyWaterLog.userId, userId),
+      eq(dailyWaterLog.date, date as any)
+    ))
+    .limit(1);
+
+  const hourlyResult = await db.select().from(hourlyWaterLog)
+    .where(and(
+      eq(hourlyWaterLog.userId, userId),
+      eq(hourlyWaterLog.date, date as any)
+    ))
+    .orderBy(hourlyWaterLog.hour);
+
+  return {
+    summary: dailyResult.length > 0 ? dailyResult[0] : null,
+    hourly: hourlyResult,
+  };
+}
+
 export async function getHourlyAverages(userId: number, days: number = 30) {
   const db = await getDb();
   if (!db) return [];

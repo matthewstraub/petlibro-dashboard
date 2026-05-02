@@ -11,6 +11,7 @@ import {
   getMonthlyAverages,
   upsertHourlyLog,
   getHourlyAverages,
+  getDailyDetail,
   getUserByUsername,
   createUser,
   updateLastSignedIn,
@@ -274,6 +275,12 @@ export const appRouter = router({
     hourly: protectedProcedure.query(async ({ ctx }) => {
       return await getHourlyAverages(ctx.user.id, 30);
     }),
+
+    dailyDetail: protectedProcedure
+      .input(z.object({ date: z.string() }))
+      .query(async ({ ctx, input }) => {
+        return await getDailyDetail(ctx.user.id, input.date);
+      }),
 
     range: protectedProcedure
       .input(z.object({

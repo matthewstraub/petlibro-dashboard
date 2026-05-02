@@ -13,10 +13,12 @@ import {
   Area,
   AreaChart,
 } from "recharts";
-import { AlertTriangle, Download, FileJson, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Download, FileJson, Loader2, Droplets, Clock, GlassWater, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useUnit } from "@/contexts/UnitContext";
+import { DatePicker } from "@/components/ui/date-picker";
+import { format } from "date-fns";
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -72,6 +74,168 @@ function convertToCSV(data: any[], columns: { key: string; label: string }[]): s
     }).join(",")
   );
   return [header, ...rows].join("\n");
+}
+
+function DailyDetailView() {
+  const { convert, label: unitLabel } = useUnit();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  const dateStr = useMemo(() => format(selectedDate, "yyyy-MM-dd"), [selectedDate]);
+
+  const { data, isLoading } = trpc.history.dailyDetail.useQuery({ date: dateStr });
+
+  const goToPrevDay = () => {
+    setSelectedDate((d) => new Date(d.getTime() - 86400000));
+  };
+
+  const goToNextDay = () => {
+    const tomorrow = new Date(selectedDate.getTime() + 86400000);
+    if (tomorrow <= new Date()) {
+      setSelectedDate(tomorrow);
+    }
+  };
+
+  const isToday = format(selectedDate, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+
+  // Build hourly chart data for the selected day
+  const hourlyChartData = useMemo(() => {
+    const hourlyMap = new Map<number, { totalMl: number; drinkingCount: number }>();
+    (data?.hourly || []).forEach((h: any) => {
+      hourlyMap.set(h.hour, { totalMl: h.totalMl, drinkingCount: h.drinkingCount });
+    });
+    return Array.from({ length: 24 }, (_, i) => ({
+      hour: `${i.toString().padStart(2, "0")}:00`,
+      totalMl: convert(hourlyMap.get(i)?.totalMl || 0),
+      sessions: hourlyMap.get(i)?.drinkingCount || 0,
+    }));
+  }, [data?.hourly, convert]);
+
+  const summary = data?.summary;
+
+  return (
+    <div className="space-y-4">
+      {/* Date navigation */}
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="icon-sm" onClick={goToPrevDay}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <DatePicker
+          date={selectedDate}
+          onSelect={(d) => d && setSelectedDate(d)}
+          disabled={(d) => d > new Date()}
+        />
+        <Button variant="outline" size="icon-sm" onClick={goToNextDay} disabled={isToday}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        {isToday && (
+          <span className="text-xs text-muted-foreground bg-primary/10 px-2 py-1 rounded-md">Today</span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <Card className="glass-card">
+          <CardContent className="pt-6 flex items-center justify-center h-[200px]">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </CardContent>
+        </Card>
+      ) : !summary ? (
+        <Card className="glass-card border-amber-500/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 text-amber-400">
+              <AlertTriangle className="h-5 w-5" />
+              <div>
+                <p className="font-medium">No data for this day</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  No drinking data was recorded on {format(selectedDate, "MMMM d, yyyy")}.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Daily summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="glass-card">
+              <CardContent className="pt-4 pb-4 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Droplets className="h-3.5 w-3.5" />
+                  <span className="text-xs">Total Intake</span>
+                </div>
+                <p className="text-xl font-bold">
+                  {convert(summary.totalMl).toFixed(1)}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">{unitLabel}</span>
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="glass-card">
+              <CardContent className="pt-4 pb-4 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <GlassWater className="h-3.5 w-3.5" />
+                  <span className="text-xs">Sessions</span>
+                </div>
+                <p className="text-xl font-bold">
+                  {summary.drinkingCount}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">times</span>
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="glass-card">
+              <CardContent className="pt-4 pb-4 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="text-xs">Total Time</span>
+                </div>
+                <p className="text-xl font-bold">
+                  {summary.totalDrinkingTime}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="glass-card">
+              <CardContent className="pt-4 pb-4 px-4">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="text-xs">Avg Duration</span>
+                </div>
+                <p className="text-xl font-bold">
+                  {summary.avgDrinkDuration}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Hourly breakdown chart */}
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Hourly Breakdown — {format(selectedDate, "MMMM d, yyyy")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={hourlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
+                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} />
+                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
+                    <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[3, 3, 0, 0]} name="totalMl" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {data?.hourly?.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground mt-2">
+                  No hourly data recorded for this day. Hourly data is captured during each sync.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function Trends() {
@@ -269,13 +433,19 @@ export default function Trends() {
         </div>
       </div>
 
-      <Tabs defaultValue="weekly" className="space-y-4">
+      <Tabs defaultValue="daily" className="space-y-4">
         <TabsList className="bg-secondary">
+          <TabsTrigger value="daily">Daily</TabsTrigger>
           <TabsTrigger value="weekly">Weekly</TabsTrigger>
           <TabsTrigger value="monthly">Monthly</TabsTrigger>
           <TabsTrigger value="yearly">Yearly</TabsTrigger>
           <TabsTrigger value="hourly">Time of Day</TabsTrigger>
         </TabsList>
+
+        {/* Daily Detail */}
+        <TabsContent value="daily">
+          <DailyDetailView />
+        </TabsContent>
 
         {/* Weekly Chart */}
         <TabsContent value="weekly">
