@@ -38,3 +38,4 @@
 - [x] Fix fl oz precision: show two decimal places (e.g., 1.47 oz) across all pages to match Petlibro iOS app
 - [x] Dashboard: show Total Drinking Time in both seconds and minutes:seconds format
 - [x] Trends Daily tab: add minutes:seconds breakdown to Total Time and Avg Duration cards
+- [ ] Investigate Petlibro API for per-session drinking event data (timestamps, amounts, durations) as shown in iOS app
