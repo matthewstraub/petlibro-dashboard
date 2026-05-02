@@ -33,7 +33,7 @@ function formatMonth(monthStr: string) {
   return `${monthName} '${shortYear}`;
 }
 
-function CustomTooltipInner({ active, payload, label, unitLabel, convertFn }: any) {
+function CustomTooltipInner({ active, payload, label, unitLabel, convertFn, formatFn }: any) {
   if (active && payload && payload.length) {
     return (
       <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-xl">
@@ -41,7 +41,7 @@ function CustomTooltipInner({ active, payload, label, unitLabel, convertFn }: an
         {payload.map((entry: any, i: number) => (
           <p key={i} className="text-sm font-semibold" style={{ color: entry.color }}>
             {entry.name === "avgMl" || entry.name === "totalMl"
-              ? `${convertFn(entry.value).toFixed(1)} ${unitLabel}`
+              ? `${formatFn ? formatFn(entry.value) : convertFn(entry.value).toFixed(2)} ${unitLabel}`
               : entry.value?.toFixed(1)}
           </p>
         ))}
@@ -77,7 +77,7 @@ function convertToCSV(data: any[], columns: { key: string; label: string }[]): s
 }
 
 function DailyDetailView() {
-  const { convert, label: unitLabel } = useUnit();
+  const { convert, format: formatValue, label: unitLabel } = useUnit();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const dateStr = useMemo(() => format(selectedDate, "yyyy-MM-dd"), [selectedDate]);
@@ -163,7 +163,7 @@ function DailyDetailView() {
                   <span className="text-xs">Total Intake</span>
                 </div>
                 <p className="text-xl font-bold">
-                  {convert(summary.totalMl).toFixed(1)}
+                  {formatValue(summary.totalMl)}
                   <span className="text-xs font-normal text-muted-foreground ml-1">{unitLabel}</span>
                 </p>
               </CardContent>
@@ -220,7 +220,7 @@ function DailyDetailView() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} formatFn={(v: number) => formatValue(v)} />} />
                     <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[3, 3, 0, 0]} name="totalMl" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -239,7 +239,7 @@ function DailyDetailView() {
 }
 
 export default function Trends() {
-  const { convert, label: unitLabel, unit, toggleUnit } = useUnit();
+  const { convert, format: formatValue, label: unitLabel, unit, toggleUnit } = useUnit();
   const weekly = trpc.history.weekly.useQuery();
   const monthly = trpc.history.monthly.useQuery({ months: 2 });
   const yearly = trpc.history.yearly.useQuery();
@@ -460,7 +460,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="date" stroke="oklch(0.6 0.02 220)" fontSize={12} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} formatFn={(v: number) => formatValue(v)} />} />
                     <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[4, 4, 0, 0]} name="totalMl" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -488,7 +488,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="date" stroke="oklch(0.6 0.02 220)" fontSize={12} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} formatFn={(v: number) => formatValue(v)} />} />
                     <Area
                       type="monotone"
                       dataKey="totalMl"
@@ -517,7 +517,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="month" stroke="oklch(0.6 0.02 220)" fontSize={12} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} formatFn={(v: number) => formatValue(v)} />} />
                     <Bar dataKey="avgMl" fill="oklch(0.6 0.12 210)" radius={[4, 4, 0, 0]} name="avgMl" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -539,7 +539,7 @@ export default function Trends() {
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} />} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} convertFn={(v: number) => v} formatFn={(v: number) => formatValue(v)} />} />
                     <Bar dataKey="avgMl" fill="oklch(0.75 0.1 175)" radius={[3, 3, 0, 0]} name="avgMl" />
                   </BarChart>
                 </ResponsiveContainer>

@@ -26,7 +26,7 @@ import { useUnit } from "@/contexts/UnitContext";
 
 export default function Home() {
   const { user } = useAuth();
-  const { convert, label, unit, toggleUnit } = useUnit();
+  const { convert, format, label, unit, toggleUnit } = useUnit();
   const liveData = trpc.fountain.liveData.useQuery(undefined, {
     refetchInterval: 60000,
   });
@@ -195,7 +195,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold tracking-tight">
-              {convert(todayMl).toFixed(unit === "oz" ? 1 : 0)}<span className="text-lg font-normal text-muted-foreground ml-1">{label}</span>
+              {format(todayMl)}<span className="text-lg font-normal text-muted-foreground ml-1">{label}</span>
             </div>
             <div className="flex items-center gap-1 mt-2 text-sm">
               {mlDiff > 0 ? (
@@ -287,12 +287,12 @@ export default function Home() {
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <span className="text-sm text-muted-foreground">Yesterday</span>
-                    <p className="font-semibold">{convert(yesterdayMl).toFixed(unit === "oz" ? 1 : 0)} {label}</p>
+                    <p className="font-semibold">{format(yesterdayMl)} {label}</p>
                   </div>
                   <div className="w-px h-8 bg-border" />
                   <div className="text-right">
                     <span className="text-sm text-primary">Today</span>
-                    <p className="font-semibold text-primary">{convert(todayMl).toFixed(unit === "oz" ? 1 : 0)} {label}</p>
+                    <p className="font-semibold text-primary">{format(todayMl)} {label}</p>
                   </div>
                 </div>
               </div>

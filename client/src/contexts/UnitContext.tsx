@@ -6,6 +6,7 @@ interface UnitContextType {
   unit: Unit;
   toggleUnit: () => void;
   convert: (ml: number) => number;
+  format: (ml: number) => string;
   label: string;
 }
 
@@ -40,10 +41,18 @@ export function UnitProvider({ children }: { children: React.ReactNode }) {
     [unit]
   );
 
+  const format = useCallback(
+    (ml: number) => {
+      if (unit === "oz") return (ml * 0.033814).toFixed(2);
+      return Math.round(ml).toString();
+    },
+    [unit]
+  );
+
   const label = unit === "ml" ? "mL" : "fl oz";
 
   return (
-    <UnitContext.Provider value={{ unit, toggleUnit, convert, label }}>
+    <UnitContext.Provider value={{ unit, toggleUnit, convert, format, label }}>
       {children}
     </UnitContext.Provider>
   );
