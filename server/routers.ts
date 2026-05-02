@@ -1,7 +1,5 @@
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { publicProcedure, protectedProcedure, router } from "./trpc";
 import { z } from "zod";
 import {
   getCredentials,
@@ -13,17 +11,81 @@ import {
   getMonthlyAverages,
   upsertHourlyLog,
   getHourlyAverages,
+  getUserByUsername,
+  createUser,
+  updateLastSignedIn,
 } from "./db";
 import { PetlibroAPI, getOrCreateAPI } from "./petlibro-api";
-import { scheduledRouter } from "./routers/scheduled";
+import { hashPassword, verifyPassword, createSessionToken } from "./auth";
 
 export const appRouter = router({
-  system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+
+    login: publicProcedure
+      .input(z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const user = await getUserByUsername(input.username);
+        if (!user || !verifyPassword(input.password, user.passwordHash)) {
+          return { success: false, error: "Invalid username or password" };
+        }
+
+        await updateLastSignedIn(user.id);
+        const token = await createSessionToken(user.id);
+
+        ctx.res.cookie(COOKIE_NAME, token, {
+          httpOnly: true,
+          secure: ctx.req.protocol === "https" || ctx.req.headers["x-forwarded-proto"] === "https",
+          sameSite: "lax",
+          path: "/",
+          maxAge: ONE_YEAR_MS,
+        });
+
+        return { success: true };
+      }),
+
+    register: publicProcedure
+      .input(z.object({
+        username: z.string().min(3).max(64),
+        password: z.string().min(6),
+        name: z.string().optional(),
+        email: z.string().email().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const existing = await getUserByUsername(input.username);
+        if (existing) {
+          return { success: false, error: "Username already taken" };
+        }
+
+        const passwordHash = hashPassword(input.password);
+        const user = await createUser({
+          username: input.username,
+          passwordHash,
+          name: input.name,
+          email: input.email,
+        });
+
+        if (!user) {
+          return { success: false, error: "Failed to create user" };
+        }
+
+        const token = await createSessionToken(user.id);
+        ctx.res.cookie(COOKIE_NAME, token, {
+          httpOnly: true,
+          secure: ctx.req.protocol === "https" || ctx.req.headers["x-forwarded-proto"] === "https",
+          sameSite: "lax",
+          path: "/",
+          maxAge: ONE_YEAR_MS,
+        });
+
+        return { success: true };
+      }),
+
     logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(COOKIE_NAME, { path: "/" });
       return { success: true } as const;
     }),
   }),
@@ -150,7 +212,6 @@ export const appRouter = router({
 
       const today = new Date().toISOString().split("T")[0];
 
-      // Save today's data
       await upsertDailyLog({
         userId: ctx.user.id,
         date: new Date(today),
@@ -173,7 +234,7 @@ export const appRouter = router({
         });
       }
 
-      // Save hourly estimate (distribute today's total across current hour)
+      // Save hourly estimate
       const currentHour = new Date().getHours();
       await upsertHourlyLog({
         userId: ctx.user.id,
@@ -224,7 +285,6 @@ export const appRouter = router({
       }),
 
     exportAll: protectedProcedure.query(async ({ ctx }) => {
-      // Get all daily logs (up to 3 years back)
       const endDate = new Date().toISOString().split("T")[0];
       const startDate = new Date(Date.now() - 1095 * 86400000).toISOString().split("T")[0];
       const dailyLogs = await getDailyLogs(ctx.user.id, startDate, endDate);
@@ -233,9 +293,6 @@ export const appRouter = router({
       return { dailyLogs, hourlyLogs, monthlyLogs };
     }),
   }),
-
-  // Scheduled task endpoint
-  scheduled: scheduledRouter,
 });
 
 export type AppRouter = typeof appRouter;

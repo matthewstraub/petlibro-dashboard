@@ -8,8 +8,25 @@ import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
 import Trends from "./pages/Trends";
 import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+import { useAuth } from "./hooks/useAuth";
+import { Loader2 } from "lucide-react";
 
-function Router() {
+function AuthenticatedApp() {
+  const { loading, isAuthenticated } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <DashboardLayout>
       <Switch>
@@ -29,7 +46,7 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <AuthenticatedApp />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

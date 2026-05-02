@@ -19,4 +19,11 @@
 - [x] Device events endpoint: fetch recent events/errors from /data/event/deviceEventsV2
 - [x] Device events UI: show a log of recent fountain events on the dashboard
 - [x] Data export feature: CSV and JSON export buttons on the Trends page for downloading historical data
-- [ ] Scheduled sync task: configure recurring task to auto-collect fountain data every few hours
+- [x] Refactor: Replace Manus OAuth with simple password login
+- [x] Refactor: Remove Manus-specific server dependencies (_core, forge API, etc.)
+- [x] Refactor: Add cron endpoint for Render cron jobs to trigger data sync
+- [x] Refactor: Update frontend login flow for password-based auth
+- [x] Add Render deployment configuration (render.yaml, Dockerfile or build command)
+- [x] Add deployment documentation (README with TiDB, Render, Cloudflare setup instructions)
+- [x] Scheduled sync task: cron endpoint implemented (/api/cron/sync) + render.yaml config + documentation for setup
+- [ ] User action: Configure external cron job (Render Cron or cron-job.org) after deploying to call /api/cron/sync
