@@ -83,6 +83,7 @@ function DailyDetailView() {
   const dateStr = useMemo(() => format(selectedDate, "yyyy-MM-dd"), [selectedDate]);
 
   const { data, isLoading } = trpc.history.dailyDetail.useQuery({ date: dateStr });
+  const { data: sessions, isLoading: sessionsLoading } = trpc.history.drinkingSessions.useQuery({ date: dateStr });
 
   const goToPrevDay = () => {
     setSelectedDate((d) => new Date(d.getTime() - 86400000));
@@ -211,6 +212,60 @@ function DailyDetailView() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Drinking Sessions Timeline */}
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Drinking Sessions — {format(selectedDate, "MMMM d, yyyy")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {sessionsLoading ? (
+                <div className="flex items-center justify-center h-[100px]">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              ) : !sessions || sessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No individual session data available for this day. Sessions are synced automatically — data will appear after the next sync.
+                </p>
+              ) : (
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-[68px] top-2 bottom-2 w-px bg-border" />
+                  <div className="space-y-0">
+                    {sessions.map((session: any, idx: number) => {
+                      const time = new Date(Number(session.sessionTime));
+                      const timeStr = time.toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                      });
+                      const durSec = session.durationSec || 0;
+                      const durStr = durSec >= 60
+                        ? `${Math.floor(durSec / 60).toString().padStart(2, "0")}m${(durSec % 60).toString().padStart(2, "0")}s`
+                        : `${durSec.toString().padStart(2, "0")}s`;
+                      return (
+                        <div key={session.sessionId || idx} className="flex items-start gap-3 py-2.5 group">
+                          <span className="text-xs text-muted-foreground w-[60px] text-right pt-0.5 shrink-0 font-mono">
+                            {timeStr}
+                          </span>
+                          <div className="relative z-10 mt-1">
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">
+                              Your pet(s) drank <span className="font-semibold text-primary">{formatValue(session.amountMl)} {unitLabel}</span> water in <span className="font-medium">{durStr}</span>.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Hourly breakdown chart */}
           <Card className="glass-card">

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { getDb } from "./db";
 import { getOrCreateAPI } from "./petlibro-api";
-import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials } from "./db";
+import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials, upsertDrinkingSessions } from "./db";
 import { getLocalDateTime, getYesterdayLocal } from "./timezone";
 import { sql } from "drizzle-orm";
 
@@ -89,6 +89,41 @@ export function registerCronRoutes(app: Express) {
             });
           }
 
+          // Sync individual drinking sessions from workRecord API
+          try {
+            const now = Date.now();
+            const oneDayAgo = now - 24 * 60 * 60 * 1000;
+            const records = await api.getWorkRecords(cred.deviceSn, oneDayAgo, now, ["DRINK"]);
+            if (records.length > 0) {
+              // Records come grouped by day with workRecords array
+              const sessions: Array<{ sessionId: string; deviceSn: string; sessionTime: number; date: string; amountMl: number; durationSec: number }> = [];
+              for (const dayGroup of records) {
+                const workRecords = (dayGroup as any).workRecords || [];
+                for (const wr of workRecords) {
+                  if (wr.id && wr.recordTime && wr.type === "DRINK") {
+                    // Convert epoch ms to local date using user's timezone
+                    const sessionDate = new Date(wr.recordTime).toLocaleDateString("en-CA", { timeZone: userTz });
+                    sessions.push({
+                      sessionId: wr.id,
+                      deviceSn: cred.deviceSn!,
+                      sessionTime: wr.recordTime,
+                      date: sessionDate,
+                      amountMl: wr.totalMl || 0,
+                      durationSec: wr.drinkTime || 0,
+                    });
+                  }
+                }
+              }
+              if (sessions.length > 0) {
+                await upsertDrinkingSessions(cred.userId, sessions);
+                console.log(`[Cron] Synced ${sessions.length} drinking sessions for user ${userId}`);
+              }
+            }
+          } catch (sessionErr) {
+            console.error(`[Cron] Failed to sync drinking sessions for user ${userId}:`, sessionErr);
+            // Don't fail the whole sync if session sync fails
+          }
+
           await updateLastSync(cred.userId);
           synced++;
         } catch (e) {
@@ -144,6 +179,33 @@ export function registerCronRoutes(app: Express) {
         migrations.push("Added timezone column to petlibro_credentials");
       } else {
         migrations.push("timezone column already exists (no-op)");
+      }
+
+      // Check if drinking_sessions table exists
+      const [tables] = await db.execute(sql`
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = 'drinking_sessions'
+        AND table_schema = DATABASE()
+      `) as any;
+
+      if (!tables || tables.length === 0) {
+        await db.execute(sql`
+          CREATE TABLE drinking_sessions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            userId INT NOT NULL,
+            sessionId VARCHAR(64) NOT NULL,
+            deviceSn VARCHAR(128) NOT NULL,
+            sessionTime BIGINT NOT NULL,
+            date DATE NOT NULL,
+            amountMl FLOAT NOT NULL DEFAULT 0,
+            durationSec INT NOT NULL DEFAULT 0,
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            UNIQUE KEY uq_session (userId, sessionId)
+          )
+        `);
+        migrations.push("Created drinking_sessions table");
+      } else {
+        migrations.push("drinking_sessions table already exists (no-op)");
       }
 
       res.json({ success: true, migrations, timestamp: new Date().toISOString() });

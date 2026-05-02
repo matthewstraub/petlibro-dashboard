@@ -68,6 +68,18 @@ export interface FountainStatus {
   waterState: boolean;
 }
 
+export interface WorkRecord {
+  id?: string;
+  deviceSn?: string;
+  type?: string;
+  content?: string;
+  startTime?: number;
+  endTime?: number;
+  createTime?: string;
+  timestamp?: number;
+  [key: string]: any;
+}
+
 export interface DeviceEvent {
   eventId?: string;
   eventType?: string;
@@ -251,6 +263,35 @@ export class PetlibroAPI {
       return [];
     } catch (error: any) {
       console.error("[PetlibroAPI] getDeviceEvents error:", error.message);
+      return [];
+    }
+  }
+
+  async getWorkRecords(deviceSn: string, startTime: number, endTime: number, types?: string[]): Promise<WorkRecord[]> {
+    try {
+      const payload: any = {
+        deviceSn,
+        startTime,
+        endTime,
+        size: 100,
+      };
+      if (types && types.length > 0) {
+        payload.type = types;
+      }
+      const data = await this.post("/device/workRecord/list", payload);
+      console.log("[PetlibroAPI] workRecord raw response:", JSON.stringify(data)?.substring(0, 500));
+      if (Array.isArray(data)) return data;
+      if (data?.list && Array.isArray(data.list)) return data.list;
+      if (data?.records && Array.isArray(data.records)) return data.records;
+      if (data?.data && Array.isArray(data.data)) return data.data;
+      // If it's an object with pagination, try to extract the list
+      if (data && typeof data === 'object') {
+        // Log all keys to help debug the response structure
+        console.log("[PetlibroAPI] workRecord response keys:", Object.keys(data));
+      }
+      return [];
+    } catch (error: any) {
+      console.error("[PetlibroAPI] getWorkRecords error:", error.message);
       return [];
     }
   }

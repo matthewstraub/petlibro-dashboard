@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, float, date } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, float, date, bigint } from "drizzle-orm/mysql-core";
 
 /**
  * User table - simple password-based auth for personal dashboard.
@@ -67,5 +67,23 @@ export type DailyWaterLog = typeof dailyWaterLog.$inferSelect;
 export type InsertDailyWaterLog = typeof dailyWaterLog.$inferInsert;
 export type HourlyWaterLog = typeof hourlyWaterLog.$inferSelect;
 export type InsertHourlyWaterLog = typeof hourlyWaterLog.$inferInsert;
+/**
+ * Individual drinking sessions - per-event data from the Petlibro workRecord API.
+ * Each row represents a single drinking event with timestamp, amount, and duration.
+ */
+export const drinkingSessions = mysqlTable("drinking_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  sessionId: varchar("sessionId", { length: 64 }).notNull(), // Petlibro's unique event ID
+  deviceSn: varchar("deviceSn", { length: 128 }).notNull(),
+  sessionTime: bigint("sessionTime", { mode: "number" }).notNull(), // epoch ms timestamp
+  date: date("date").notNull(), // local date for easy querying
+  amountMl: float("amountMl").notNull().default(0),
+  durationSec: int("durationSec").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export type PetlibroCredentials = typeof petlibroCredentials.$inferSelect;
 export type InsertPetlibroCredentials = typeof petlibroCredentials.$inferInsert;
+export type DrinkingSession = typeof drinkingSessions.$inferSelect;
+export type InsertDrinkingSession = typeof drinkingSessions.$inferInsert;

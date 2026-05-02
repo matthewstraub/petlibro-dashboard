@@ -13,6 +13,8 @@ import {
   upsertHourlyLog,
   getHourlyAverages,
   getDailyDetail,
+  getDrinkingSessions,
+  upsertDrinkingSessions,
   getUserByUsername,
   createUser,
   updateLastSignedIn,
@@ -210,6 +212,29 @@ export const appRouter = router({
       }
     }),
 
+    // Debug: fetch work records to explore the API response
+    workRecords: protectedProcedure
+      .input(z.object({
+        startTime: z.number().optional(),
+        endTime: z.number().optional(),
+        types: z.array(z.string()).optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        const creds = await getCredentials(ctx.user.id);
+        if (!creds || !creds.deviceSn) {
+          return { error: "No credentials or device configured", records: [] };
+        }
+
+        const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+        const now = Date.now();
+        const startTime = input?.startTime || (now - 24 * 60 * 60 * 1000); // default: last 24h
+        const endTime = input?.endTime || now;
+        const types = input?.types;
+
+        const records = await api.getWorkRecords(creds.deviceSn, startTime, endTime, types);
+        return { records, count: records.length };
+      }),
+
     // Sync current data to database
     syncToday: protectedProcedure.mutation(async ({ ctx }) => {
       const creds = await getCredentials(ctx.user.id);
@@ -259,6 +284,37 @@ export const appRouter = router({
         drinkingCount: drinkData.todayTotalTimes || 0,
       });
 
+      // Also sync individual drinking sessions
+      try {
+        const now = Date.now();
+        const oneDayAgo = now - 24 * 60 * 60 * 1000;
+        const records = await api.getWorkRecords(creds.deviceSn, oneDayAgo, now, ["DRINK"]);
+        if (records.length > 0) {
+          const sessions: Array<{ sessionId: string; deviceSn: string; sessionTime: number; date: string; amountMl: number; durationSec: number }> = [];
+          for (const dayGroup of records) {
+            const workRecords = (dayGroup as any).workRecords || [];
+            for (const wr of workRecords) {
+              if (wr.id && wr.recordTime && wr.type === "DRINK") {
+                const sessionDate = new Date(wr.recordTime).toLocaleDateString("en-CA", { timeZone: userTz });
+                sessions.push({
+                  sessionId: wr.id,
+                  deviceSn: creds.deviceSn!,
+                  sessionTime: wr.recordTime,
+                  date: sessionDate,
+                  amountMl: wr.totalMl || 0,
+                  durationSec: wr.drinkTime || 0,
+                });
+              }
+            }
+          }
+          if (sessions.length > 0) {
+            await upsertDrinkingSessions(ctx.user.id, sessions);
+          }
+        }
+      } catch (sessionErr) {
+        console.error("[syncToday] Failed to sync drinking sessions:", sessionErr);
+      }
+
       await updateLastSync(ctx.user.id);
 
       return { success: true, synced: today };
@@ -294,6 +350,65 @@ export const appRouter = router({
       .input(z.object({ date: z.string() }))
       .query(async ({ ctx, input }) => {
         return await getDailyDetail(ctx.user.id, input.date);
+      }),
+
+    drinkingSessions: protectedProcedure
+      .input(z.object({ date: z.string() }))
+      .query(async ({ ctx, input }) => {
+        // First check if we already have sessions stored
+        let sessions = await getDrinkingSessions(ctx.user.id, input.date);
+        if (sessions.length > 0) return sessions;
+
+        // No stored sessions — try to fetch on-demand from Petlibro API
+        try {
+          const creds = await getCredentials(ctx.user.id);
+          if (!creds || !creds.deviceSn) return [];
+
+          const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+          const userTz = creds.timezone || "America/New_York";
+
+          // Build start/end timestamps for the requested date in user's timezone
+          const dateObj = new Date(input.date + "T00:00:00");
+          // Use timezone-aware start/end of day
+          const startOfDay = new Date(dateObj.toLocaleString("en-US", { timeZone: userTz }));
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(startOfDay);
+          endOfDay.setHours(23, 59, 59, 999);
+
+          // Fetch work records for that day (use a 2-day window to be safe with timezone offsets)
+          const startMs = startOfDay.getTime() - 12 * 60 * 60 * 1000; // 12h buffer before
+          const endMs = endOfDay.getTime() + 12 * 60 * 60 * 1000; // 12h buffer after
+
+          const records = await api.getWorkRecords(creds.deviceSn, startMs, endMs, ["DRINK"]);
+          if (records.length > 0) {
+            const newSessions: Array<{ sessionId: string; deviceSn: string; sessionTime: number; date: string; amountMl: number; durationSec: number }> = [];
+            for (const dayGroup of records) {
+              const workRecords = (dayGroup as any).workRecords || [];
+              for (const wr of workRecords) {
+                if (wr.id && wr.recordTime && wr.type === "DRINK") {
+                  const sessionDate = new Date(wr.recordTime).toLocaleDateString("en-CA", { timeZone: userTz });
+                  newSessions.push({
+                    sessionId: wr.id,
+                    deviceSn: creds.deviceSn!,
+                    sessionTime: wr.recordTime,
+                    date: sessionDate,
+                    amountMl: wr.totalMl || 0,
+                    durationSec: wr.drinkTime || 0,
+                  });
+                }
+              }
+            }
+            if (newSessions.length > 0) {
+              await upsertDrinkingSessions(ctx.user.id, newSessions);
+              // Re-query to get only sessions for the requested date
+              sessions = await getDrinkingSessions(ctx.user.id, input.date);
+            }
+          }
+        } catch (fetchErr) {
+          console.error("[drinkingSessions] On-demand fetch failed:", fetchErr);
+        }
+
+        return sessions;
       }),
 
     range: protectedProcedure

@@ -1,6 +1,6 @@
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { users, dailyWaterLog, hourlyWaterLog, petlibroCredentials } from "../drizzle/schema";
+import { users, dailyWaterLog, hourlyWaterLog, petlibroCredentials, drinkingSessions } from "../drizzle/schema";
 import type { InsertUser, InsertDailyWaterLog, InsertHourlyWaterLog, InsertPetlibroCredentials } from "../drizzle/schema";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -285,6 +285,55 @@ export async function getDailyDetail(userId: number, date: string) {
     summary: dailyResult.length > 0 ? dailyResult[0] : null,
     hourly: hourlyResult,
   };
+}
+
+// ==================== Drinking Sessions ====================
+
+export async function upsertDrinkingSessions(
+  userId: number,
+  sessions: Array<{
+    sessionId: string;
+    deviceSn: string;
+    sessionTime: number;
+    date: string;
+    amountMl: number;
+    durationSec: number;
+  }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  // Use INSERT IGNORE to skip duplicates (based on unique key userId+sessionId)
+  for (const s of sessions) {
+    try {
+      await db.execute(sql`
+        INSERT IGNORE INTO drinking_sessions (userId, sessionId, deviceSn, sessionTime, date, amountMl, durationSec)
+        VALUES (${userId}, ${s.sessionId}, ${s.deviceSn}, ${s.sessionTime}, ${s.date}, ${s.amountMl}, ${s.durationSec})
+      `);
+    } catch (e) {
+      // Skip individual insert errors (e.g., duplicate key)
+      console.warn(`[DB] Failed to insert session ${s.sessionId}:`, e);
+    }
+  }
+}
+
+export async function getDrinkingSessions(userId: number, date: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const result = await db.execute(sql`
+      SELECT sessionId, deviceSn, sessionTime, date, amountMl, durationSec, createdAt
+      FROM drinking_sessions
+      WHERE userId = ${userId} AND date = ${date}
+      ORDER BY sessionTime DESC
+    `);
+    return (result as any)[0] || [];
+  } catch (e) {
+    // Table might not exist yet
+    console.warn("[DB] getDrinkingSessions failed (table may not exist):", e);
+    return [];
+  }
 }
 
 export async function getHourlyAverages(userId: number, days: number = 30) {
