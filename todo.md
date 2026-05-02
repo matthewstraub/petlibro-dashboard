@@ -28,3 +28,4 @@
 - [x] Scheduled sync task: cron endpoint implemented (/api/cron/sync) + render.yaml config + documentation for setup
 - [x] User action: Configure external cron job (Render Cron or cron-job.org) after deploying to call /api/cron/sync
 - [x] Unit toggle: add mL / fl oz switch that persists and converts all water measurements across Dashboard and Trends pages
+- [x] Bug fix: Yearly chart X-axis shows "May 26" (a date) instead of month names like "May '26"

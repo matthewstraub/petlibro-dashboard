@@ -26,7 +26,9 @@ function formatDate(dateStr: string) {
 function formatMonth(monthStr: string) {
   const [year, month] = monthStr.split("-");
   const d = new Date(parseInt(year), parseInt(month) - 1);
-  return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  const monthName = d.toLocaleDateString("en-US", { month: "short" });
+  const shortYear = year.slice(-2);
+  return `${monthName} '${shortYear}`;
 }
 
 function CustomTooltipInner({ active, payload, label, unitLabel, convertFn }: any) {
