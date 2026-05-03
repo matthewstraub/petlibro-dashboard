@@ -25,6 +25,14 @@ function formatDate(dateStr: string) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatHour12(hour: number | string) {
+  const h = typeof hour === "string" ? parseInt(hour) : hour;
+  if (h === 0) return "12 AM";
+  if (h < 12) return `${h} AM`;
+  if (h === 12) return "12 PM";
+  return `${h - 12} PM`;
+}
+
 function formatMonth(monthStr: string) {
   const [year, month] = monthStr.split("-");
   const d = new Date(parseInt(year), parseInt(month) - 1);
@@ -242,7 +250,7 @@ function DailyDetailView() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hourlyChartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
+                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} tickFormatter={formatHour12} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
                     <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[3, 3, 0, 0]} name="totalMl" />
@@ -615,7 +623,7 @@ export default function Trends() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hourlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
+                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} tickFormatter={formatHour12} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
                     <Bar dataKey="avgMl" fill="oklch(0.75 0.1 175)" radius={[3, 3, 0, 0]} name="avgMl" />
