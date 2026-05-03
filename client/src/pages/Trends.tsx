@@ -586,7 +586,7 @@ export default function Trends() {
         <TabsContent value="yearly">
           <Card className="glass-card">
             <CardHeader>
-              <CardTitle className="text-base">Past 12 Months — Monthly Average Intake</CardTitle>
+              <CardTitle className="text-base">Past 12 Months — Average Daily Intake per Month</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[320px]">
