@@ -47,3 +47,4 @@
 - [x] Bug fix: Bar chart tooltip values are incorrect (double-conversion) on Daily, Weekly, Yearly, and Time of Day tabs
 - [x] Daily tab: move hourly chart above the session timeline list
 - [x] Bug fix: Yearly chart title clarified — was showing avg daily intake per month (correct), title was misleading
+- [x] Add axis labels to all charts (Y-axis: unit label, X-axis: time context) across Trends page (Daily, Weekly, Monthly, Yearly, Time of Day)
