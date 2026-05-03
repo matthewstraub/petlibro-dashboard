@@ -48,3 +48,4 @@
 - [x] Daily tab: move hourly chart above the session timeline list
 - [x] Bug fix: Yearly chart title clarified — was showing avg daily intake per month (correct), title was misleading
 - [x] Add axis labels to all charts (Y-axis: unit label, X-axis: time context) across Trends page (Daily, Weekly, Monthly, Yearly, Time of Day)
+- [x] Increase bottom margin on all charts to prevent X-axis labels from being clipped

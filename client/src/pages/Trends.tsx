@@ -240,7 +240,7 @@ function DailyDetailView() {
             <CardContent>
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={hourlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <BarChart data={hourlyChartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
@@ -534,7 +534,7 @@ export default function Trends() {
             <CardContent>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="date" stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: "Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
@@ -556,7 +556,7 @@ export default function Trends() {
             <CardContent>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <defs>
                       <linearGradient id="colorMl" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="oklch(0.65 0.15 195)" stopOpacity={0.3} />
@@ -591,7 +591,7 @@ export default function Trends() {
             <CardContent>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={yearlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <BarChart data={yearlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="month" stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: "Month", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
@@ -613,7 +613,7 @@ export default function Trends() {
             <CardContent>
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={hourlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <BarChart data={hourlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                     <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
                     <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
