@@ -230,6 +230,33 @@ function DailyDetailView() {
             </Card>
           </div>
 
+          {/* Hourly breakdown chart */}
+          <Card className="glass-card">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Hourly Breakdown — {format(selectedDate, "MMMM d, yyyy")}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={hourlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
+                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} />
+                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
+                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
+                    <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[3, 3, 0, 0]} name="totalMl" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {(!sessions || sessions.length === 0) && (!data?.hourly || data.hourly.length === 0) && (
+                <p className="text-center text-sm text-muted-foreground mt-2">
+                  No hourly data available for this day.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Drinking Sessions Timeline */}
           <Card className="glass-card">
             <CardHeader>
@@ -280,33 +307,6 @@ function DailyDetailView() {
                     })}
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Hourly breakdown chart */}
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="text-base">
-                Hourly Breakdown — {format(selectedDate, "MMMM d, yyyy")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={hourlyChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} />
-                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
-                    <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[3, 3, 0, 0]} name="totalMl" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              {(!sessions || sessions.length === 0) && (!data?.hourly || data.hourly.length === 0) && (
-                <p className="text-center text-sm text-muted-foreground mt-2">
-                  No hourly data available for this day.
-                </p>
               )}
             </CardContent>
           </Card>

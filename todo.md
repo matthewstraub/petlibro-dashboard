@@ -45,3 +45,4 @@
 - [x] Update Daily tab UI with session timeline matching iOS app logs view
 - [x] Fix Daily tab: compute hourly bar chart from drinking_sessions data instead of hourly_water_log to match session timeline
 - [x] Bug fix: Bar chart tooltip values are incorrect (double-conversion) on Daily, Weekly, Yearly, and Time of Day tabs
+- [x] Daily tab: move hourly chart above the session timeline list
