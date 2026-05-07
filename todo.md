@@ -50,3 +50,4 @@
 - [x] Add axis labels to all charts (Y-axis: unit label, X-axis: time context) across Trends page (Daily, Weekly, Monthly, Yearly, Time of Day)
 - [x] Increase bottom margin on all charts to prevent X-axis labels from being clipped
 - [x] Convert X-axis hour labels from 24h to 12h format (AM/PM) on Daily and Time of Day charts
+- [ ] Bug: May 6 Daily tab shows data in summary cards (intake, sessions) but chart is empty and only 1 session listed
