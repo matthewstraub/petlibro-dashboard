@@ -50,4 +50,7 @@
 - [x] Add axis labels to all charts (Y-axis: unit label, X-axis: time context) across Trends page (Daily, Weekly, Monthly, Yearly, Time of Day)
 - [x] Increase bottom margin on all charts to prevent X-axis labels from being clipped
 - [x] Convert X-axis hour labels from 24h to 12h format (AM/PM) on Daily and Time of Day charts
-- [ ] Bug: May 6 Daily tab shows data in summary cards (intake, sessions) but chart is empty and only 1 session listed
+- [x] Bug: May 6 Daily tab - implement hybrid summary cards (daily_water_log for intake/sessions, sessions for time)
+- [x] Add re-sync sessions button on Daily tab to force re-fetch from workRecord API
+- [x] Fix drinkingSessions/resyncSessions date-range calculation to build correct start/end timestamps for the selected local day
+- [x] Add regression tests covering partial/missing session days and hybrid summary-card behavior

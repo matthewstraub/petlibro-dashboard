@@ -21,7 +21,7 @@ import {
 } from "./db";
 import { PetlibroAPI, getOrCreateAPI } from "./petlibro-api";
 import { hashPassword, verifyPassword, createSessionToken } from "./auth";
-import { getLocalDateTime, getYesterdayLocal } from "./timezone";
+import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
 
 export const appRouter = router({
   auth: router({
@@ -352,6 +352,52 @@ export const appRouter = router({
         return await getDailyDetail(ctx.user.id, input.date);
       }),
 
+    resyncSessions: protectedProcedure
+      .input(z.object({ date: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        // Force re-fetch sessions from Petlibro API regardless of what's stored
+        try {
+          const creds = await getCredentials(ctx.user.id);
+          if (!creds || !creds.deviceSn) return { success: false, count: 0 };
+
+          const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+          const userTz = creds.timezone || "America/New_York";
+
+          // Compute correct UTC epoch boundaries for the user's local day
+          const { startMs, endMs } = getLocalDayBounds(input.date, userTz);
+
+          const records = await api.getWorkRecords(creds.deviceSn, startMs, endMs, ["DRINK"]);
+          let count = 0;
+          if (records.length > 0) {
+            const newSessions: Array<{ sessionId: string; deviceSn: string; sessionTime: number; date: string; amountMl: number; durationSec: number }> = [];
+            for (const dayGroup of records) {
+              const workRecords = (dayGroup as any).workRecords || [];
+              for (const wr of workRecords) {
+                if (wr.id && wr.recordTime && wr.type === "DRINK") {
+                  const sessionDate = new Date(wr.recordTime).toLocaleDateString("en-CA", { timeZone: userTz });
+                  newSessions.push({
+                    sessionId: wr.id,
+                    deviceSn: creds.deviceSn!,
+                    sessionTime: wr.recordTime,
+                    date: sessionDate,
+                    amountMl: wr.totalMl || 0,
+                    durationSec: wr.drinkTime || 0,
+                  });
+                }
+              }
+            }
+            if (newSessions.length > 0) {
+              await upsertDrinkingSessions(ctx.user.id, newSessions);
+              count = newSessions.filter(s => s.date === input.date).length;
+            }
+          }
+          return { success: true, count };
+        } catch (err) {
+          console.error("[resyncSessions] Failed:", err);
+          return { success: false, count: 0 };
+        }
+      }),
+
     drinkingSessions: protectedProcedure
       .input(z.object({ date: z.string() }))
       .query(async ({ ctx, input }) => {
@@ -367,17 +413,8 @@ export const appRouter = router({
           const api = getOrCreateAPI(creds.email, creds.password, creds.region);
           const userTz = creds.timezone || "America/New_York";
 
-          // Build start/end timestamps for the requested date in user's timezone
-          const dateObj = new Date(input.date + "T00:00:00");
-          // Use timezone-aware start/end of day
-          const startOfDay = new Date(dateObj.toLocaleString("en-US", { timeZone: userTz }));
-          startOfDay.setHours(0, 0, 0, 0);
-          const endOfDay = new Date(startOfDay);
-          endOfDay.setHours(23, 59, 59, 999);
-
-          // Fetch work records for that day (use a 2-day window to be safe with timezone offsets)
-          const startMs = startOfDay.getTime() - 12 * 60 * 60 * 1000; // 12h buffer before
-          const endMs = endOfDay.getTime() + 12 * 60 * 60 * 1000; // 12h buffer after
+          // Compute correct UTC epoch boundaries for the user's local day
+          const { startMs, endMs } = getLocalDayBounds(input.date, userTz);
 
           const records = await api.getWorkRecords(creds.deviceSn, startMs, endMs, ["DRINK"]);
           if (records.length > 0) {

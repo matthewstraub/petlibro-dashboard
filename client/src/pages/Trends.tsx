@@ -13,7 +13,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
-import { AlertTriangle, Download, FileJson, Loader2, Droplets, Clock, GlassWater, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, Download, FileJson, Loader2, Droplets, Clock, GlassWater, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useUnit } from "@/contexts/UnitContext";
@@ -91,7 +91,18 @@ function DailyDetailView() {
   const dateStr = useMemo(() => format(selectedDate, "yyyy-MM-dd"), [selectedDate]);
 
   const { data, isLoading } = trpc.history.dailyDetail.useQuery({ date: dateStr });
-  const { data: sessions, isLoading: sessionsLoading } = trpc.history.drinkingSessions.useQuery({ date: dateStr });
+  const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } = trpc.history.drinkingSessions.useQuery({ date: dateStr });
+  const resyncMutation = trpc.history.resyncSessions.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`Re-synced ${result.count} sessions for this day`);
+        refetchSessions();
+      } else {
+        toast.error("Failed to re-sync sessions");
+      }
+    },
+    onError: () => toast.error("Failed to re-sync sessions"),
+  });
 
   const goToPrevDay = () => {
     setSelectedDate((d) => new Date(d.getTime() - 86400000));
@@ -180,63 +191,87 @@ function DailyDetailView() {
         </Card>
       ) : (
         <>
-          {/* Daily summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="glass-card">
-              <CardContent className="pt-4 pb-4 px-4">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <Droplets className="h-3.5 w-3.5" />
-                  <span className="text-xs">Total Intake</span>
-                </div>
-                <p className="text-xl font-bold">
-                  {formatValue(summary.totalMl)}
-                  <span className="text-xs font-normal text-muted-foreground ml-1">{unitLabel}</span>
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass-card">
-              <CardContent className="pt-4 pb-4 px-4">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <GlassWater className="h-3.5 w-3.5" />
-                  <span className="text-xs">Sessions</span>
-                </div>
-                <p className="text-xl font-bold">
-                  {summary.drinkingCount}
-                  <span className="text-xs font-normal text-muted-foreground ml-1">times</span>
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass-card">
-              <CardContent className="pt-4 pb-4 px-4">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span className="text-xs">Total Time</span>
-                </div>
-                <p className="text-xl font-bold">
-                  {summary.totalDrinkingTime}
-                  <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {Math.floor(summary.totalDrinkingTime / 60)}m {summary.totalDrinkingTime % 60}s
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="glass-card">
-              <CardContent className="pt-4 pb-4 px-4">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span className="text-xs">Avg Duration</span>
-                </div>
-                <p className="text-xl font-bold">
-                  {summary.avgDrinkDuration}
-                  <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {Math.floor(summary.avgDrinkDuration / 60)}m {summary.avgDrinkDuration % 60}s
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Daily summary cards - hybrid: intake/sessions from daily_water_log, time from sessions */}
+          {(() => {
+            // Compute time stats from sessions when available
+            const sessionTotalTime = sessions && sessions.length > 0
+              ? sessions.reduce((sum: number, s: any) => sum + (s.durationSec || 0), 0)
+              : summary.totalDrinkingTime;
+            const sessionAvgDuration = sessions && sessions.length > 0
+              ? Math.round(sessionTotalTime / sessions.length)
+              : summary.avgDrinkDuration;
+            const hasTimeData = sessionTotalTime > 0;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="glass-card">
+                  <CardContent className="pt-4 pb-4 px-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <Droplets className="h-3.5 w-3.5" />
+                      <span className="text-xs">Total Intake</span>
+                    </div>
+                    <p className="text-xl font-bold">
+                      {formatValue(summary.totalMl)}
+                      <span className="text-xs font-normal text-muted-foreground ml-1">{unitLabel}</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="glass-card">
+                  <CardContent className="pt-4 pb-4 px-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <GlassWater className="h-3.5 w-3.5" />
+                      <span className="text-xs">Sessions</span>
+                    </div>
+                    <p className="text-xl font-bold">
+                      {summary.drinkingCount}
+                      <span className="text-xs font-normal text-muted-foreground ml-1">times</span>
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card className="glass-card">
+                  <CardContent className="pt-4 pb-4 px-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span className="text-xs">Total Time</span>
+                    </div>
+                    {hasTimeData ? (
+                      <>
+                        <p className="text-xl font-bold">
+                          {sessionTotalTime}
+                          <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {Math.floor(sessionTotalTime / 60)}m {sessionTotalTime % 60}s
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-lg text-muted-foreground">—</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card className="glass-card">
+                  <CardContent className="pt-4 pb-4 px-4">
+                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span className="text-xs">Avg Duration</span>
+                    </div>
+                    {hasTimeData ? (
+                      <>
+                        <p className="text-xl font-bold">
+                          {sessionAvgDuration}
+                          <span className="text-xs font-normal text-muted-foreground ml-1">sec</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {Math.floor(sessionAvgDuration / 60)}m {sessionAvgDuration % 60}s
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-lg text-muted-foreground">—</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
 
           {/* Hourly breakdown chart */}
           <Card className="glass-card">
@@ -267,10 +302,20 @@ function DailyDetailView() {
 
           {/* Drinking Sessions Timeline */}
           <Card className="glass-card">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">
                 Drinking Sessions — {format(selectedDate, "MMMM d, yyyy")}
               </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => resyncMutation.mutate({ date: dateStr })}
+                disabled={resyncMutation.isPending}
+                className="h-7 text-xs gap-1.5"
+              >
+                <RefreshCw className={`h-3 w-3 ${resyncMutation.isPending ? "animate-spin" : ""}`} />
+                Re-sync
+              </Button>
             </CardHeader>
             <CardContent>
               {sessionsLoading ? (
