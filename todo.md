@@ -60,3 +60,4 @@
 - [x] Add tests for cron integrity check and lazy repair behavior
 - [x] Update README with proactive re-sync documentation
 - [x] Create docs/session-sync-strategies.md with all brainstormed approaches for future reference
+- [ ] Bug: cron-job.org disabled job due to "Response data too big" — trim /api/cron/sync response to minimal summary
