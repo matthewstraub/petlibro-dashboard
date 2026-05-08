@@ -173,7 +173,8 @@ export function registerCronRoutes(app: Express) {
       res.json({ success: true, synced, errors, timestamp: new Date().toISOString() });
     } catch (error: any) {
       console.error("[Cron] Sync failed:", error);
-      res.status(500).json({ error: "Sync failed", message: error.message });
+      // Keep error response minimal to avoid "response too big" issues with external cron services
+      res.status(500).json({ success: false, error: "Sync failed" });
     }
   });
 

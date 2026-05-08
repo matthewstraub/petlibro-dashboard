@@ -117,19 +117,31 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
    - `JWT_SECRET` = any random 32+ character string
    - `CRON_SECRET` = any random 32+ character string
 
-#### Setting Up the Cron Job
+#### Setting Up the Cron Job (GitHub Actions — Recommended)
 
+The repo includes a GitHub Actions workflow (`.github/workflows/sync.yml`) that handles scheduled syncs with a wake-then-sync pattern to avoid Render free tier cold-start issues.
+
+1. In your GitHub repo, go to **Settings** → **Secrets and variables** → **Actions**
+2. Add these repository secrets:
+   - `RENDER_APP_URL`: Your full Render app URL (e.g., `https://petlibro-dashboard.onrender.com`)
+   - `CRON_SECRET`: The same `CRON_SECRET` value from your Render environment variables
+3. The workflow runs automatically every 4 hours. It:
+   - Pings `/api/health` to wake the Render instance from sleep
+   - Waits 45 seconds for cold start to complete
+   - Calls `/api/cron/sync` with the cron secret header
+   - Retries once on failure
+4. You can also trigger it manually from the **Actions** tab → **Petlibro Sync** → **Run workflow**
+
+> **Why GitHub Actions over cron-job.org?** Render's free tier sleeps after 15 min of inactivity. External cron services (cron-job.org, EasyCron) often fail because the instance is asleep and returns a large HTML error page or times out. GitHub Actions handles this gracefully with the wake-wait-sync pattern.
+
+#### Alternative: Render Native Cron ($1/month)
+
+If you prefer not to use GitHub Actions:
 1. In Render, go to **New** → **Cron Job**
-2. Configure:
-   - **Schedule:** `0 */4 * * *` (every 4 hours)
-   - **Command:**
-     ```bash
-     curl -s -H "x-cron-secret: YOUR_CRON_SECRET" "https://YOUR-APP.onrender.com/api/cron/sync"
-     ```
-   - Replace `YOUR_CRON_SECRET` with the same value from your web service
-   - Replace `YOUR-APP` with your Render app name
-
-> **Note:** Render's free tier cron jobs are limited. Alternatively, use [cron-job.org](https://cron-job.org/) (free) to call the endpoint.
+2. Schedule: `0 */4 * * *`, Command:
+   ```bash
+   curl -sf -H "x-cron-secret: $CRON_SECRET" "$RENDER_EXTERNAL_URL/api/cron/sync"
+   ```
 
 ### 3. Cloudflare Setup (Optional)
 
@@ -229,6 +241,7 @@ See [`docs/session-sync-strategies.md`](docs/session-sync-strategies.md) for the
 ## Project Structure
 
 ```
+├── .github/workflows/   # GitHub Actions (cron sync)
 ├── client/              # React frontend
 │   ├── src/
 │   │   ├── pages/       # Dashboard, Trends, Settings, Login
@@ -242,9 +255,11 @@ See [`docs/session-sync-strategies.md`](docs/session-sync-strategies.md) for the
 │   ├── db.ts            # Database helpers
 │   ├── auth.ts          # Password hashing + JWT
 │   ├── cron.ts          # Cron sync endpoint
+│   ├── timezone.ts      # DST-safe timezone utilities
 │   ├── petlibro-api.ts  # Petlibro API client
 │   ├── context.ts       # tRPC context
 │   └── trpc.ts          # tRPC setup
+├── docs/                # Design decisions & architecture
 ├── drizzle/             # Database schema + migrations
 ├── shared/              # Shared constants
 ├── render.yaml          # Render deployment config
@@ -253,19 +268,15 @@ See [`docs/session-sync-strategies.md`](docs/session-sync-strategies.md) for the
 
 ---
 
-## Free Tier Cron Alternatives
+## Cron Sync Strategy
 
-If Render's cron job doesn't suit your needs, these free services can call your sync endpoint on a schedule:
+The recommended approach is the included **GitHub Actions workflow** (`.github/workflows/sync.yml`), which uses a wake-then-sync pattern to handle Render's free tier cold starts. See the deployment section above for setup.
 
-- **[cron-job.org](https://cron-job.org/)** — Free, reliable, supports custom headers
-- **[EasyCron](https://www.easycron.com/)** — Free tier with 200 executions/month
-- **[GitHub Actions](https://github.com/features/actions)** — Schedule a workflow to `curl` your endpoint
+**Why not cron-job.org?** External cron services have response size limits and don't handle Render's sleep/wake cycle well. When the instance is sleeping, Render returns a large HTML error page that exceeds cron-job.org's response limit, causing the job to be disabled after repeated failures.
 
-Example cron-job.org setup:
-- URL: `https://your-app.onrender.com/api/cron/sync`
-- Method: GET
-- Header: `x-cron-secret: your-secret-value`
-- Schedule: Every 4 hours
+**Fallback options** (if GitHub Actions isn't suitable):
+- **Render Native Cron** ($1/month) — handles cold starts internally
+- **Keep-alive + cron-job.org** — a separate job pings `/api/health` every 14 min to prevent sleep, then the sync job runs normally
 
 ---
 

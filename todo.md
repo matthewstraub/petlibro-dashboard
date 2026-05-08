@@ -60,4 +60,7 @@
 - [x] Add tests for cron integrity check and lazy repair behavior
 - [x] Update README with proactive re-sync documentation
 - [x] Create docs/session-sync-strategies.md with all brainstormed approaches for future reference
-- [ ] Bug: cron-job.org disabled job due to "Response data too big" — trim /api/cron/sync response to minimal summary
+- [x] Bug: cron-job.org disabled job due to "Response data too big" — replace with GitHub Actions workflow
+- [x] Create .github/workflows/sync.yml with wake-then-sync pattern
+- [x] Trim cron endpoint error responses to prevent large payloads
+- [x] Update README with GitHub Actions cron setup instructions
