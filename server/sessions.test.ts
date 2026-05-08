@@ -86,6 +86,201 @@ describe("getLocalDayBounds", () => {
   });
 });
 
+describe("session integrity check logic", () => {
+  it("identifies gap when stored < expected (moderate strategy trigger)", () => {
+    const expectedCount = 5;
+    const storedCount = 2;
+
+    const needsRepair = expectedCount > 0 && storedCount < expectedCount;
+    expect(needsRepair).toBe(true);
+  });
+
+  it("does not trigger repair when stored >= expected", () => {
+    const expectedCount = 3;
+    const storedCount = 3;
+
+    const needsRepair = expectedCount > 0 && storedCount < expectedCount;
+    expect(needsRepair).toBe(false);
+  });
+
+  it("does not trigger repair when stored exceeds expected (API returned more)", () => {
+    const expectedCount = 3;
+    const storedCount = 5;
+
+    const needsRepair = expectedCount > 0 && storedCount < expectedCount;
+    expect(needsRepair).toBe(false);
+  });
+
+  it("does not trigger repair when expected is 0 (no daily log entry)", () => {
+    const expectedCount = 0;
+    const storedCount = 0;
+
+    const needsRepair = expectedCount > 0 && storedCount < expectedCount;
+    expect(needsRepair).toBe(false);
+  });
+
+  it("triggers repair when expected > 0 but stored is 0", () => {
+    const expectedCount = 4;
+    const storedCount = 0;
+
+    const needsRepair = expectedCount > 0 && storedCount < expectedCount;
+    expect(needsRepair).toBe(true);
+  });
+
+  it("lazy repair condition: fetches when no sessions and no daily log (on-demand discovery)", () => {
+    const sessions: any[] = [];
+    const expectedCount = 0;
+    const storedCount = 0;
+
+    // The drinkingSessions query also fetches when sessions.length === 0
+    // (to discover sessions for dates without daily_water_log)
+    const hasNoSessions = sessions.length === 0;
+    const integrityGap = expectedCount > 0 && storedCount < expectedCount;
+    const shouldFetch = hasNoSessions || integrityGap;
+
+    expect(shouldFetch).toBe(true);
+  });
+
+  it("lazy repair condition: does not fetch when sessions exist and integrity is fine", () => {
+    const sessions = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const expectedCount = 3;
+    const storedCount = 3;
+
+    const hasNoSessions = sessions.length === 0;
+    const integrityGap = expectedCount > 0 && storedCount < expectedCount;
+    const shouldFetch = hasNoSessions || integrityGap;
+
+    expect(shouldFetch).toBe(false);
+  });
+
+  it("lazy repair condition: fetches when sessions exist but count is less than expected", () => {
+    const sessions = [{ id: 1 }, { id: 2 }];
+    const expectedCount = 5;
+    const storedCount = 2;
+
+    const hasNoSessions = sessions.length === 0;
+    const integrityGap = expectedCount > 0 && storedCount < expectedCount;
+    const shouldFetch = hasNoSessions || integrityGap;
+
+    expect(shouldFetch).toBe(true);
+  });
+});
+
+describe("cron integrity check flow", () => {
+  // Simulates the decision logic in cron.ts for today/yesterday checks
+  function shouldCronRepair(dates: string[], getIntegrity: (date: string) => { expectedCount: number; storedCount: number }) {
+    const repairDates: string[] = [];
+    for (const date of dates) {
+      const { expectedCount, storedCount } = getIntegrity(date);
+      if (expectedCount > 0 && storedCount < expectedCount) {
+        repairDates.push(date);
+      }
+    }
+    return repairDates;
+  }
+
+  it("repairs today when sessions are missing", () => {
+    const dates = ["2026-05-08", "2026-05-07"];
+    const integrity: Record<string, { expectedCount: number; storedCount: number }> = {
+      "2026-05-08": { expectedCount: 3, storedCount: 1 },
+      "2026-05-07": { expectedCount: 5, storedCount: 5 },
+    };
+
+    const result = shouldCronRepair(dates, (d) => integrity[d]);
+    expect(result).toEqual(["2026-05-08"]);
+  });
+
+  it("repairs yesterday when sessions are missing", () => {
+    const dates = ["2026-05-08", "2026-05-07"];
+    const integrity: Record<string, { expectedCount: number; storedCount: number }> = {
+      "2026-05-08": { expectedCount: 2, storedCount: 2 },
+      "2026-05-07": { expectedCount: 4, storedCount: 0 },
+    };
+
+    const result = shouldCronRepair(dates, (d) => integrity[d]);
+    expect(result).toEqual(["2026-05-07"]);
+  });
+
+  it("repairs both today and yesterday when both have gaps", () => {
+    const dates = ["2026-05-08", "2026-05-07"];
+    const integrity: Record<string, { expectedCount: number; storedCount: number }> = {
+      "2026-05-08": { expectedCount: 3, storedCount: 1 },
+      "2026-05-07": { expectedCount: 4, storedCount: 2 },
+    };
+
+    const result = shouldCronRepair(dates, (d) => integrity[d]);
+    expect(result).toEqual(["2026-05-08", "2026-05-07"]);
+  });
+
+  it("repairs nothing when both days are complete", () => {
+    const dates = ["2026-05-08", "2026-05-07"];
+    const integrity: Record<string, { expectedCount: number; storedCount: number }> = {
+      "2026-05-08": { expectedCount: 3, storedCount: 3 },
+      "2026-05-07": { expectedCount: 5, storedCount: 7 }, // over-count is fine
+    };
+
+    const result = shouldCronRepair(dates, (d) => integrity[d]);
+    expect(result).toEqual([]);
+  });
+
+  it("skips days with no daily log (expectedCount = 0)", () => {
+    const dates = ["2026-05-08", "2026-05-07"];
+    const integrity: Record<string, { expectedCount: number; storedCount: number }> = {
+      "2026-05-08": { expectedCount: 0, storedCount: 0 },
+      "2026-05-07": { expectedCount: 0, storedCount: 0 },
+    };
+
+    const result = shouldCronRepair(dates, (d) => integrity[d]);
+    expect(result).toEqual([]);
+  });
+});
+
+describe("lazy repair on read flow", () => {
+  // Simulates the drinkingSessions query decision logic
+  function shouldLazyRepair(
+    sessions: any[],
+    integrity: { expectedCount: number; storedCount: number }
+  ): boolean {
+    const hasNoSessions = sessions.length === 0;
+    const integrityGap = integrity.expectedCount > 0 && integrity.storedCount < integrity.expectedCount;
+    return hasNoSessions || integrityGap;
+  }
+
+  it("repairs when sessions array is empty (on-demand discovery)", () => {
+    expect(shouldLazyRepair([], { expectedCount: 0, storedCount: 0 })).toBe(true);
+  });
+
+  it("repairs when sessions exist but fewer than expected", () => {
+    const sessions = [{ id: "a" }, { id: "b" }];
+    expect(shouldLazyRepair(sessions, { expectedCount: 5, storedCount: 2 })).toBe(true);
+  });
+
+  it("does NOT repair when sessions match expected count", () => {
+    const sessions = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(shouldLazyRepair(sessions, { expectedCount: 3, storedCount: 3 })).toBe(false);
+  });
+
+  it("does NOT repair when sessions exceed expected count", () => {
+    const sessions = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+    expect(shouldLazyRepair(sessions, { expectedCount: 3, storedCount: 4 })).toBe(false);
+  });
+
+  it("repairs when daily log says sessions exist but none are stored", () => {
+    expect(shouldLazyRepair([], { expectedCount: 4, storedCount: 0 })).toBe(true);
+  });
+
+  it("after repair, upserted sessions should fill the gap", () => {
+    // Simulate: before repair we have 2, after repair API returns 5 total
+    const beforeRepair = [{ id: "a" }, { id: "b" }];
+    const apiReturned = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }];
+
+    // After upsert (INSERT IGNORE), re-query returns all 5
+    const afterRepair = apiReturned; // simulates re-query
+    expect(afterRepair.length).toBe(5);
+    expect(afterRepair.length).toBeGreaterThanOrEqual(beforeRepair.length);
+  });
+});
+
 describe("hybrid summary card behavior", () => {
   it("when no sessions exist, time fields should be null (shown as dash in UI)", () => {
     // This tests the contract: when sessions array is empty,

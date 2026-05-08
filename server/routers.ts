@@ -15,6 +15,7 @@ import {
   getDailyDetail,
   getDrinkingSessions,
   upsertDrinkingSessions,
+  getSessionIntegrity,
   getUserByUsername,
   createUser,
   updateLastSignedIn,
@@ -401,48 +402,53 @@ export const appRouter = router({
     drinkingSessions: protectedProcedure
       .input(z.object({ date: z.string() }))
       .query(async ({ ctx, input }) => {
-        // First check if we already have sessions stored
+        // Check stored sessions and integrity against daily_water_log
         let sessions = await getDrinkingSessions(ctx.user.id, input.date);
-        if (sessions.length > 0) return sessions;
+        const { expectedCount, storedCount } = await getSessionIntegrity(ctx.user.id, input.date);
 
-        // No stored sessions — try to fetch on-demand from Petlibro API
-        try {
-          const creds = await getCredentials(ctx.user.id);
-          if (!creds || !creds.deviceSn) return [];
+        // Lazy repair: re-fetch if no sessions stored, or if stored < expected (moderate strategy)
+        const needsRepair = (expectedCount > 0 && storedCount < expectedCount) || (sessions.length === 0 && expectedCount === 0);
+        const hasNoSessions = sessions.length === 0;
 
-          const api = getOrCreateAPI(creds.email, creds.password, creds.region);
-          const userTz = creds.timezone || "America/New_York";
+        if (hasNoSessions || (expectedCount > 0 && storedCount < expectedCount)) {
+          try {
+            const creds = await getCredentials(ctx.user.id);
+            if (!creds || !creds.deviceSn) return sessions;
 
-          // Compute correct UTC epoch boundaries for the user's local day
-          const { startMs, endMs } = getLocalDayBounds(input.date, userTz);
+            const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+            const userTz = creds.timezone || "America/New_York";
 
-          const records = await api.getWorkRecords(creds.deviceSn, startMs, endMs, ["DRINK"]);
-          if (records.length > 0) {
-            const newSessions: Array<{ sessionId: string; deviceSn: string; sessionTime: number; date: string; amountMl: number; durationSec: number }> = [];
-            for (const dayGroup of records) {
-              const workRecords = (dayGroup as any).workRecords || [];
-              for (const wr of workRecords) {
-                if (wr.id && wr.recordTime && wr.type === "DRINK") {
-                  const sessionDate = new Date(wr.recordTime).toLocaleDateString("en-CA", { timeZone: userTz });
-                  newSessions.push({
-                    sessionId: wr.id,
-                    deviceSn: creds.deviceSn!,
-                    sessionTime: wr.recordTime,
-                    date: sessionDate,
-                    amountMl: wr.totalMl || 0,
-                    durationSec: wr.drinkTime || 0,
-                  });
+            // Compute correct UTC epoch boundaries for the user's local day
+            const { startMs, endMs } = getLocalDayBounds(input.date, userTz);
+
+            const records = await api.getWorkRecords(creds.deviceSn, startMs, endMs, ["DRINK"]);
+            if (records.length > 0) {
+              const newSessions: Array<{ sessionId: string; deviceSn: string; sessionTime: number; date: string; amountMl: number; durationSec: number }> = [];
+              for (const dayGroup of records) {
+                const workRecords = (dayGroup as any).workRecords || [];
+                for (const wr of workRecords) {
+                  if (wr.id && wr.recordTime && wr.type === "DRINK") {
+                    const sessionDate = new Date(wr.recordTime).toLocaleDateString("en-CA", { timeZone: userTz });
+                    newSessions.push({
+                      sessionId: wr.id,
+                      deviceSn: creds.deviceSn!,
+                      sessionTime: wr.recordTime,
+                      date: sessionDate,
+                      amountMl: wr.totalMl || 0,
+                      durationSec: wr.drinkTime || 0,
+                    });
+                  }
                 }
               }
+              if (newSessions.length > 0) {
+                await upsertDrinkingSessions(ctx.user.id, newSessions);
+                // Re-query to get only sessions for the requested date
+                sessions = await getDrinkingSessions(ctx.user.id, input.date);
+              }
             }
-            if (newSessions.length > 0) {
-              await upsertDrinkingSessions(ctx.user.id, newSessions);
-              // Re-query to get only sessions for the requested date
-              sessions = await getDrinkingSessions(ctx.user.id, input.date);
-            }
+          } catch (fetchErr) {
+            console.error("[drinkingSessions] Lazy repair fetch failed:", fetchErr);
           }
-        } catch (fetchErr) {
-          console.error("[drinkingSessions] On-demand fetch failed:", fetchErr);
         }
 
         return sessions;

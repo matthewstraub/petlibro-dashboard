@@ -336,6 +336,39 @@ export async function getDrinkingSessions(userId: number, date: string) {
   }
 }
 
+/**
+ * Get the expected session count from daily_water_log for a specific date.
+ * Returns { expectedCount, storedCount } for integrity comparison.
+ */
+export async function getSessionIntegrity(userId: number, date: string): Promise<{ expectedCount: number; storedCount: number }> {
+  const db = await getDb();
+  if (!db) return { expectedCount: 0, storedCount: 0 };
+
+  try {
+    // Get expected count from daily_water_log
+    const dailyResult = await db.execute(sql`
+      SELECT drinkingCount FROM daily_water_log
+      WHERE userId = ${userId} AND date = ${date}
+      LIMIT 1
+    `);
+    const dailyRows = (dailyResult as any)[0] || [];
+    const expectedCount = dailyRows.length > 0 ? (dailyRows[0].drinkingCount || 0) : 0;
+
+    // Get stored session count from drinking_sessions
+    const sessionResult = await db.execute(sql`
+      SELECT COUNT(*) as cnt FROM drinking_sessions
+      WHERE userId = ${userId} AND date = ${date}
+    `);
+    const sessionRows = (sessionResult as any)[0] || [];
+    const storedCount = sessionRows.length > 0 ? (sessionRows[0].cnt || 0) : 0;
+
+    return { expectedCount, storedCount };
+  } catch (e) {
+    console.warn("[DB] getSessionIntegrity failed:", e);
+    return { expectedCount: 0, storedCount: 0 };
+  }
+}
+
 export async function getHourlyAverages(userId: number, days: number = 30) {
   const db = await getDb();
   if (!db) return [];

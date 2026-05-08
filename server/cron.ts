@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { getDb } from "./db";
 import { getOrCreateAPI } from "./petlibro-api";
-import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials, upsertDrinkingSessions } from "./db";
-import { getLocalDateTime, getYesterdayLocal } from "./timezone";
+import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials, upsertDrinkingSessions, getSessionIntegrity } from "./db";
+import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
 import { sql } from "drizzle-orm";
 
 /**
@@ -122,6 +122,44 @@ export function registerCronRoutes(app: Express) {
           } catch (sessionErr) {
             console.error(`[Cron] Failed to sync drinking sessions for user ${userId}:`, sessionErr);
             // Don't fail the whole sync if session sync fails
+          }
+
+          // Integrity check: verify today and yesterday have expected session counts
+          try {
+            const datesToCheck = [today, getYesterdayLocal(userTz)];
+            for (const checkDate of datesToCheck) {
+              const { expectedCount, storedCount } = await getSessionIntegrity(cred.userId, checkDate);
+              if (expectedCount > 0 && storedCount < expectedCount) {
+                console.log(`[Cron] Integrity gap for user ${userId} on ${checkDate}: expected ${expectedCount}, stored ${storedCount}. Re-fetching...`);
+                const { startMs: repairStart, endMs: repairEnd } = getLocalDayBounds(checkDate, userTz);
+                const repairRecords = await api.getWorkRecords(cred.deviceSn!, repairStart, repairEnd, ["DRINK"]);
+                if (repairRecords.length > 0) {
+                  const repairSessions: Array<{ sessionId: string; deviceSn: string; sessionTime: number; date: string; amountMl: number; durationSec: number }> = [];
+                  for (const dayGroup of repairRecords) {
+                    const workRecords = (dayGroup as any).workRecords || [];
+                    for (const wr of workRecords) {
+                      if (wr.id && wr.recordTime && wr.type === "DRINK") {
+                        const sessionDate = new Date(wr.recordTime).toLocaleDateString("en-CA", { timeZone: userTz });
+                        repairSessions.push({
+                          sessionId: wr.id,
+                          deviceSn: cred.deviceSn!,
+                          sessionTime: wr.recordTime,
+                          date: sessionDate,
+                          amountMl: wr.totalMl || 0,
+                          durationSec: wr.drinkTime || 0,
+                        });
+                      }
+                    }
+                  }
+                  if (repairSessions.length > 0) {
+                    await upsertDrinkingSessions(cred.userId, repairSessions);
+                    console.log(`[Cron] Repaired ${repairSessions.length} sessions for user ${userId} on ${checkDate}`);
+                  }
+                }
+              }
+            }
+          } catch (integrityErr) {
+            console.error(`[Cron] Integrity check failed for user ${userId}:`, integrityErr);
           }
 
           await updateLastSync(cred.userId);

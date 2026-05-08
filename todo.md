@@ -54,3 +54,9 @@
 - [x] Add re-sync sessions button on Daily tab to force re-fetch from workRecord API
 - [x] Fix drinkingSessions/resyncSessions date-range calculation to build correct start/end timestamps for the selected local day
 - [x] Add regression tests covering partial/missing session days and hybrid summary-card behavior
+- [x] Proactive re-sync: cron integrity check — verify today/yesterday session count vs daily_water_log.drinkingCount, re-fetch if stored < expected
+- [x] Proactive re-sync: lazy repair on read — drinkingSessions query auto-re-fetches if stored count < daily_water_log.drinkingCount
+- [x] Add DB helper to get expected session count from daily_water_log for a given date
+- [x] Add tests for cron integrity check and lazy repair behavior
+- [x] Update README with proactive re-sync documentation
+- [x] Create docs/session-sync-strategies.md with all brainstormed approaches for future reference

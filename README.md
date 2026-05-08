@@ -13,6 +13,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
 - **Device Events Log** — Recent fountain events and errors
 - **Data Export** — Download historical data as CSV or JSON
 - **Automatic Sync** — Cron endpoint for scheduled data collection
+- **Proactive Session Repair** — Automatic detection and re-sync of missing drinking sessions
 - **Token Auto-Refresh** — Seamless re-authentication on token expiry
 
 ## Tech Stack
@@ -188,7 +189,40 @@ The app will be available at `http://localhost:3000`.
 |----------|--------|-------------|
 | `/api/trpc/*` | POST | tRPC API (all app functionality) |
 | `/api/cron/sync` | GET | Cron sync endpoint (requires `x-cron-secret` header) |
+| `/api/migrate` | GET | Schema migration endpoint (requires `secret` query param) |
 | `/api/health` | GET | Health check endpoint |
+
+---
+
+## Data Integrity: Proactive Session Sync
+
+The dashboard uses a **moderate hybrid strategy** to ensure drinking session data stays consistent with the daily summary log. This addresses cases where the Petlibro API returns daily totals (session count, total intake) but individual session records are missing or incomplete.
+
+### How It Works
+
+The system compares `daily_water_log.drinkingCount` (expected sessions) against the actual count of rows in `drinking_sessions` for each date. When `stored < expected`, it triggers a re-fetch from the Petlibro workRecord API.
+
+**Two repair mechanisms work together:**
+
+1. **Cron Integrity Check** — During each scheduled sync, the system verifies today and yesterday's session counts. If a gap is detected, it automatically re-fetches the missing sessions from the API. This runs proactively without user intervention.
+
+2. **Lazy Repair on Read** — When a user views the Daily tab for any date, the `drinkingSessions` query checks integrity before returning results. If stored sessions are fewer than expected (or zero), it fetches from the API, upserts any new records, and returns the updated list. This self-heals older dates on first view.
+
+### Trigger Conditions (Moderate Strategy)
+
+| Condition | Action |
+|-----------|--------|
+| `stored == 0` and no daily log | Fetch on-demand (discovery) |
+| `stored < expected` | Re-fetch and upsert missing sessions |
+| `stored >= expected` | No action needed |
+
+### Manual Re-sync
+
+Users can also click the **Re-sync Sessions** button on the Daily tab to force a fresh fetch for any specific date, regardless of integrity status.
+
+### Design Decisions
+
+See [`docs/session-sync-strategies.md`](docs/session-sync-strategies.md) for the full analysis of alternative approaches considered.
 
 ---
 
