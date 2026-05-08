@@ -1,0 +1,62 @@
+name: Petlibro Sync
+
+on:
+  schedule:
+    # Every 4 hours
+    - cron: '0 */4 * * *'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake Render instance
+        run: |
+          echo "Pinging health endpoint to wake Render instance..."
+          curl -sf --max-time 60 "${{ secrets.RENDER_APP_URL }}/api/health" || echo "Wake ping sent (instance may be cold-starting)"
+
+      - name: Wait for cold start
+        run: sleep 45
+
+      - name: Verify instance is awake
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${{ secrets.RENDER_APP_URL }}/api/health")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Instance is awake and healthy."
+          else
+            echo "Health check returned $HTTP_STATUS — proceeding anyway."
+          fi
+
+      - name: Run sync with retry
+        run: |
+          attempt_sync() {
+            RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 120 \
+              -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+              "${{ secrets.RENDER_APP_URL }}/api/cron/sync")
+            HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+            echo "Status: $HTTP_STATUS"
+            echo "Response: $BODY"
+            [ "$HTTP_STATUS" = "200" ]
+          }
+
+          echo "=== Attempt 1 ==="
+          if attempt_sync; then
+            echo "Sync completed successfully."
+            exit 0
+          fi
+
+          echo ""
+          echo "=== Attempt 1 failed. Waiting 30s before retry... ==="
+          sleep 30
+
+          echo "=== Attempt 2 ==="
+          if attempt_sync; then
+            echo "Retry succeeded."
+            exit 0
+          fi
+
+          echo ""
+          echo "Both attempts failed."
+          exit 1
