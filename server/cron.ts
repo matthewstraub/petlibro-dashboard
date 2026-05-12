@@ -7,7 +7,7 @@ import { sql } from "drizzle-orm";
 
 /**
  * Register cron job endpoints.
- * These are called by Render's cron job feature (or any external scheduler).
+ * These are called by GitHub Actions (see .github/workflows/sync.yml) or any external scheduler.
  * Protected by a CRON_SECRET environment variable.
  */
 export function registerCronRoutes(app: Express) {

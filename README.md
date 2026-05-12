@@ -59,7 +59,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
      id INT AUTO_INCREMENT PRIMARY KEY,
      userId INT NOT NULL,
      date DATE NOT NULL,
-     totalMl INT NOT NULL DEFAULT 0,
+     totalMl FLOAT NOT NULL DEFAULT 0,
      drinkingCount INT NOT NULL DEFAULT 0,
      totalDrinkingTime INT NOT NULL DEFAULT 0,
      avgDrinkDuration INT NOT NULL DEFAULT 0,
@@ -72,7 +72,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
      userId INT NOT NULL,
      date DATE NOT NULL,
      hour INT NOT NULL,
-     totalMl INT NOT NULL DEFAULT 0,
+     totalMl FLOAT NOT NULL DEFAULT 0,
      drinkingCount INT NOT NULL DEFAULT 0,
      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
      updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -83,11 +83,24 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
      userId INT NOT NULL UNIQUE,
      email VARCHAR(320) NOT NULL,
      password VARCHAR(256) NOT NULL,
-     region VARCHAR(10) NOT NULL DEFAULT 'US',
+     region VARCHAR(20) NOT NULL DEFAULT 'US',
      deviceSn VARCHAR(128),
+     timezone VARCHAR(64) NOT NULL DEFAULT 'America/New_York',
      lastSyncAt TIMESTAMP,
      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
      updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+   );
+
+   CREATE TABLE IF NOT EXISTS drinking_sessions (
+     id INT AUTO_INCREMENT PRIMARY KEY,
+     userId INT NOT NULL,
+     sessionId VARCHAR(64) NOT NULL,
+     deviceSn VARCHAR(128) NOT NULL,
+     sessionTime BIGINT NOT NULL,
+     date DATE NOT NULL,
+     amountMl FLOAT NOT NULL DEFAULT 0,
+     durationSec INT NOT NULL DEFAULT 0,
+     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
    );
    ```
 

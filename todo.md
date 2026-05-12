@@ -64,3 +64,8 @@
 - [x] Create .github/workflows/sync.yml with wake-then-sync pattern
 - [x] Trim cron endpoint error responses to prevent large payloads
 - [x] Update README with GitHub Actions cron setup instructions
+- [x] Fix README: add missing drinking_sessions CREATE TABLE to migration SQL
+- [x] Fix README: add timezone column to petlibro_credentials SQL
+- [x] Fix README: change totalMl from INT to FLOAT in migration SQL
+- [x] Fix render.yaml: remove Render cron service (replaced by GitHub Actions)
+- [x] Fix cron.ts: update comment to reference GitHub Actions instead of Render cron

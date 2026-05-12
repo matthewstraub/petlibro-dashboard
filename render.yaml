@@ -15,20 +15,3 @@ services:
       - key: CRON_SECRET
         generateValue: true
     healthCheckPath: /api/health
-
-  - type: cron
-    name: petlibro-sync
-    runtime: node
-    plan: free
-    schedule: "0 */4 * * *"
-    buildCommand: echo "no build needed"
-    startCommand: |
-      curl -sf -H "x-cron-secret: $CRON_SECRET" "$RENDER_SERVICE_URL/api/cron/sync"
-    envVars:
-      - key: CRON_SECRET
-        fromService:
-          name: petlibro-dashboard
-          type: web
-          envVarKey: CRON_SECRET
-      - key: RENDER_SERVICE_URL
-        sync: false
