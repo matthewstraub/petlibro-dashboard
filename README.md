@@ -7,7 +7,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
 - **Live Water Consumption** — Today's total mL, drinking sessions, total time, and average duration
 - **Yesterday Comparison** — Side-by-side comparison with trend indicators
 - **Fountain Status** — Water level, filter life, cleaning schedule, WiFi signal
-- **Maintenance Alerts** — Proactive notifications before thresholds are reached
+- **Maintenance Alerts** — Proactive notifications before thresholds are reached, with clear "overdue by X days" messaging when past due
 - **Weekly/Monthly/Yearly Trends** — Visualize consumption patterns over time
 - **Time-of-Day Analysis** — Discover when your cat drinks most frequently
 - **Device Events Log** — Recent fountain events and errors
