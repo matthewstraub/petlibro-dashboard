@@ -117,12 +117,18 @@ export default function Home() {
   // Maintenance alerts
   const alerts: { type: "warning" | "danger"; message: string }[] = [];
   if (status) {
-    if (status.remainingFilterDays <= 3) {
+    if (status.remainingFilterDays < 0) {
+      const overdueDays = Math.abs(status.remainingFilterDays);
+      alerts.push({ type: "danger", message: `Filter replacement overdue by ${overdueDays} day${overdueDays !== 1 ? "s" : ""}` });
+    } else if (status.remainingFilterDays <= 3) {
       alerts.push({ type: "danger", message: `Filter replacement needed in ${status.remainingFilterDays} day${status.remainingFilterDays !== 1 ? "s" : ""}` });
     } else if (status.remainingFilterDays <= 7) {
       alerts.push({ type: "warning", message: `Filter replacement approaching (${status.remainingFilterDays} days remaining)` });
     }
-    if (status.remainingCleaningDays <= 1) {
+    if (status.remainingCleaningDays < 0) {
+      const overdueDays = Math.abs(status.remainingCleaningDays);
+      alerts.push({ type: "danger", message: `Machine cleaning overdue by ${overdueDays} day${overdueDays !== 1 ? "s" : ""}` });
+    } else if (status.remainingCleaningDays <= 1) {
       alerts.push({ type: "danger", message: `Machine cleaning needed in ${status.remainingCleaningDays} day${status.remainingCleaningDays !== 1 ? "s" : ""}` });
     } else if (status.remainingCleaningDays <= 3) {
       alerts.push({ type: "warning", message: `Machine cleaning approaching (${status.remainingCleaningDays} days remaining)` });
@@ -370,7 +376,7 @@ export default function Home() {
                   <Filter className="h-4 w-4 text-chart-2" />
                   <span className="text-sm">Filter Life</span>
                 </div>
-                <span className="text-sm font-semibold">{status?.remainingFilterDays ?? "—"} days</span>
+                <span className="text-sm font-semibold">{status?.remainingFilterDays != null ? (status.remainingFilterDays < 0 ? `Overdue by ${Math.abs(status.remainingFilterDays)} days` : `${status.remainingFilterDays} days`) : "—"}</span>
               </div>
               <div className="h-px bg-border" />
               <div className="flex items-center justify-between">
@@ -378,7 +384,7 @@ export default function Home() {
                   <Sparkles className="h-4 w-4 text-chart-4" />
                   <span className="text-sm">Next Cleaning</span>
                 </div>
-                <span className="text-sm font-semibold">{status?.remainingCleaningDays ?? "—"} days</span>
+                <span className="text-sm font-semibold">{status?.remainingCleaningDays != null ? (status.remainingCleaningDays < 0 ? `Overdue by ${Math.abs(status.remainingCleaningDays)} days` : `${status.remainingCleaningDays} days`) : "—"}</span>
               </div>
               <div className="h-px bg-border" />
               <div className="flex items-center justify-between">

@@ -69,3 +69,4 @@
 - [x] Fix README: change totalMl from INT to FLOAT in migration SQL
 - [x] Fix render.yaml: remove Render cron service (replaced by GitHub Actions)
 - [x] Fix cron.ts: update comment to reference GitHub Actions instead of Render cron
+- [x] Bug fix: maintenance alerts show negative numbers when overdue — display "overdue by X days" instead
