@@ -2,15 +2,19 @@ name: Petlibro Sync
 
 on:
   schedule:
-    # Every 4 hours
-    - cron: '0 */4 * * *'
+    # Every 4 hours, at :23 to avoid GitHub's top-of-hour queue
+    - cron: '23 */4 * * *'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
+      - name: Signal start
+        continue-on-error: true
+        run: curl -fsS -m 10 --retry 3 "${{ secrets.HEALTHCHECK_URL }}/start"
+
       - name: Wake Render instance
         run: |
           echo "Pinging health endpoint to wake Render instance..."
@@ -25,7 +29,7 @@ jobs:
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "Instance is awake and healthy."
           else
-            echo "Health check returned $HTTP_STATUS — proceeding anyway."
+            echo "Health check returned $HTTP_STATUS, proceeding anyway."
           fi
 
       - name: Run sync with retry
@@ -60,3 +64,12 @@ jobs:
           echo ""
           echo "Both attempts failed."
           exit 1
+
+      - name: Signal success
+        if: success()
+        continue-on-error: true
+        run: curl -fsS -m 10 --retry 3 "${{ secrets.HEALTHCHECK_URL }}"
+
+      - name: Signal failure
+        if: failure()
+        run: curl -fsS -m 10 --retry 3 "${{ secrets.HEALTHCHECK_URL }}/fail"
