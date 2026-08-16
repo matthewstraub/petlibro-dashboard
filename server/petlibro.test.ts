@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./context";
+import { addDaysToKey } from "@shared/analytics";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -182,6 +183,50 @@ describe("history router", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.history.range({ startDate: "2025-01-01", endDate: "2025-01-31" });
     expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("dailySeries returns rows and the resolved range bounds", async () => {
+    const { ctx } = createAuthContext(990);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.history.dailySeries({ rangeDays: 30 });
+    expect(Array.isArray(result.rows)).toBe(true);
+    expect(result.startKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.endKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.todayKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("dailySeries spans exactly rangeDays inclusive of today", async () => {
+    const { ctx } = createAuthContext(989);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.history.dailySeries({ rangeDays: 30 });
+    // 30 days inclusive means the start is 29 days back, not 30
+    expect(addDaysToKey(result.startKey, 29)).toBe(result.endKey);
+  });
+
+  it("dailySeries accepts null rangeDays for all history", async () => {
+    const { ctx } = createAuthContext(988);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.history.dailySeries({ rangeDays: null });
+    expect(Array.isArray(result.rows)).toBe(true);
+  });
+
+  it("dailySeries rejects a zero or negative range", async () => {
+    const { ctx } = createAuthContext(987);
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.history.dailySeries({ rangeDays: 0 })).rejects.toThrow();
+    await expect(caller.history.dailySeries({ rangeDays: -5 })).rejects.toThrow();
+  });
+
+  it("dailySeries rejects a non-integer range", async () => {
+    const { ctx } = createAuthContext(986);
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.history.dailySeries({ rangeDays: 30.5 })).rejects.toThrow();
+  });
+
+  it("rejects unauthenticated access to history.dailySeries", async () => {
+    const { ctx } = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.history.dailySeries({ rangeDays: 30 })).rejects.toThrow();
   });
 
   it("exportAll returns dailyLogs, hourlyLogs, and monthlyLogs", async () => {

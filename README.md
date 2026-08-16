@@ -10,6 +10,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
 - **Maintenance Alerts** — Proactive notifications before thresholds are reached, with clear "overdue by X days" messaging when past due
 - **Weekly/Monthly/Yearly Trends** — Visualize consumption patterns over time
 - **Time-of-Day Analysis** — Discover when your cat drinks most frequently
+- **Long-Term Analysis** — Daily intake with 7-day and 30-day rolling averages, a plain-language trend verdict, and honest data-coverage reporting
 - **Device Events Log** — Recent fountain events and errors
 - **Data Export** — Download historical data as CSV or JSON
 - **Automatic Sync** — Cron endpoint for scheduled data collection
@@ -257,7 +258,7 @@ See [`docs/session-sync-strategies.md`](docs/session-sync-strategies.md) for the
 ├── .github/workflows/   # GitHub Actions (cron sync)
 ├── client/              # React frontend
 │   ├── src/
-│   │   ├── pages/       # Dashboard, Trends, Settings, Login
+│   │   ├── pages/       # Dashboard, Trends, Analysis, Settings, Login
 │   │   ├── components/  # UI components + DashboardLayout
 │   │   ├── hooks/       # useAuth hook
 │   │   └── lib/         # tRPC client
@@ -274,10 +275,36 @@ See [`docs/session-sync-strategies.md`](docs/session-sync-strategies.md) for the
 │   └── trpc.ts          # tRPC setup
 ├── docs/                # Design decisions & architecture
 ├── drizzle/             # Database schema + migrations
-├── shared/              # Shared constants
+├── shared/              # Shared constants + analytics module
 ├── render.yaml          # Render deployment config
 └── package.json
 ```
+
+---
+
+## Long-Term Analysis
+
+The **Analysis** page answers "is my cat drinking more or less than she used to?" — a question the fixed-window Trends charts can't, because day-to-day intake is noisy enough to hide a real month-long drift.
+
+Pick a range (30 days / 90 days / All time) and you get daily intake as bars with **7-day and 30-day rolling averages** overlaid, a one-sentence verdict ("Up 12% over the last 90 days — averaging 188 mL/day, versus 168 mL/day before that"), and a coverage note.
+
+### How gaps are handled
+
+The sync can miss days, and only "today" and "yesterday" are ever written — so a multi-day outage leaves a permanent hole. Rather than paper over it:
+
+| Situation | Behavior |
+|-----------|----------|
+| Day with no row | Excluded from all averages, rendered as a **break** in the line — never counted as zero |
+| Rolling average window | Measured in **calendar** days, not rows, so a gap can't silently stretch a "7-day" average across twelve |
+| Window that is mostly gaps | Yields no point at all (needs ≥60% of days: 5 of 7, 18 of 30) rather than a misleading one |
+| Today's row | Plotted as a muted bar, but excluded from every average and from the trend — it's always partial until the day ends |
+| Duplicate rows for one date | Collapsed with `MAX()`, since both are snapshots of the same cumulative counter |
+
+Coverage is always stated explicitly ("98 of 104 days recorded · 6 missing") so you can judge how much weight the trend deserves.
+
+### Implementation notes
+
+The math lives in [`shared/analytics.ts`](shared/analytics.ts) — a pure, dependency-free module covered by 44 unit tests. The `history.dailySeries` endpoint widens its fetch by 29 days behind the requested start, so the 30-day average is populated from the first visible day instead of ramping up across the chart.
 
 ---
 

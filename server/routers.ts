@@ -16,6 +16,8 @@ import {
   getDrinkingSessions,
   upsertDrinkingSessions,
   getSessionIntegrity,
+  getDailyTotalsByDate,
+  getEarliestLogDate,
   getUserByUsername,
   createUser,
   updateLastSignedIn,
@@ -23,6 +25,7 @@ import {
 import { PetlibroAPI, getOrCreateAPI } from "./petlibro-api";
 import { hashPassword, verifyPassword, createSessionToken } from "./auth";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
+import { addDaysToKey, MAX_WINDOW_DAYS } from "@shared/analytics";
 
 export const appRouter = router({
   auth: router({
@@ -461,6 +464,43 @@ export const appRouter = router({
       }))
       .query(async ({ ctx, input }) => {
         return await getDailyLogs(ctx.user.id, input.startDate, input.endDate);
+      }),
+
+    /**
+     * Daily totals for the Analysis page, plus the bounds they were computed for.
+     *
+     * Takes a window length rather than explicit dates because "today" is the
+     * user's local day, which only the server knows: making the client send
+     * dates would require it to learn the timezone first and risk an off-by-one
+     * at the day boundary.
+     */
+    dailySeries: protectedProcedure
+      .input(z.object({
+        // null = all history; the server resolves the real earliest date.
+        rangeDays: z.number().int().min(1).max(1826).nullable(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const creds = await getCredentials(ctx.user.id);
+        const userTz = creds?.timezone || "America/New_York";
+        const todayKey = getLocalDateTime(userTz).date;
+
+        let startKey: string;
+        if (input.rangeDays !== null) {
+          startKey = addDaysToKey(todayKey, -(input.rangeDays - 1));
+        } else {
+          const earliest = await getEarliestLogDate(ctx.user.id);
+          if (!earliest) {
+            return { rows: [], startKey: todayKey, endKey: todayKey, todayKey };
+          }
+          startKey = earliest;
+        }
+
+        // Widen the fetch so trailing averages are populated from the first
+        // displayed day instead of ramping up across the visible range.
+        const fetchStart = addDaysToKey(startKey, -(MAX_WINDOW_DAYS - 1));
+        const rows = await getDailyTotalsByDate(ctx.user.id, fetchStart, todayKey);
+
+        return { rows, startKey, endKey: todayKey, todayKey };
       }),
 
     exportAll: protectedProcedure.query(async ({ ctx }) => {

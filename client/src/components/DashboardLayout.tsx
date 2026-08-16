@@ -20,13 +20,14 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, TrendingUp, Settings } from "lucide-react";
+import { LayoutDashboard, LineChart, LogOut, PanelLeft, TrendingUp, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: TrendingUp, label: "Trends", path: "/trends" },
+  { icon: LineChart, label: "Analysis", path: "/analysis" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 

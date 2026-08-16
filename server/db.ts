@@ -369,6 +369,74 @@ export async function getSessionIntegrity(userId: number, date: string): Promise
   }
 }
 
+// ==================== Analysis ====================
+
+/**
+ * Daily totals over a date range, keyed by "YYYY-MM-DD".
+ *
+ * The date is formatted by MySQL rather than returned as a JS Date, so no
+ * timezone-sensitive Date is ever constructed from driver output.
+ *
+ * Rows are grouped by date and reduced with MAX because there is no unique key
+ * on (userId, date): a cron run racing a manual sync can leave two rows for one
+ * day. Both are snapshots of the same cumulative counter, so the largest is the
+ * correct value and SUM would double-count.
+ */
+export async function getDailyTotalsByDate(
+  userId: number,
+  startDate: string,
+  endDate: string
+): Promise<Array<{ dateKey: string; totalMl: number; drinkingCount: number }>> {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        DATE_FORMAT(date, '%Y-%m-%d') AS dateKey,
+        MAX(totalMl) AS totalMl,
+        MAX(drinkingCount) AS drinkingCount
+      FROM daily_water_log
+      WHERE userId = ${userId} AND date >= ${startDate} AND date <= ${endDate}
+      GROUP BY DATE_FORMAT(date, '%Y-%m-%d')
+      ORDER BY dateKey ASC
+    `);
+
+    // MAX() over a FLOAT column comes back as a string through mysql2.
+    return ((result as any)[0] || []).map((row: any) => ({
+      dateKey: row.dateKey,
+      totalMl: parseFloat(row.totalMl) || 0,
+      drinkingCount: parseInt(row.drinkingCount, 10) || 0,
+    }));
+  } catch (e) {
+    console.warn("[DB] getDailyTotalsByDate failed:", e);
+    return [];
+  }
+}
+
+/**
+ * The user's earliest recorded day as "YYYY-MM-DD", or null if none.
+ * Used to anchor the "All" range to real data, so coverage is reported against
+ * a range that actually exists rather than an arbitrary far-past constant.
+ */
+export async function getEarliestLogDate(userId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const result = await db.execute(sql`
+      SELECT DATE_FORMAT(MIN(date), '%Y-%m-%d') AS dateKey
+      FROM daily_water_log
+      WHERE userId = ${userId}
+    `);
+    const rows = (result as any)[0] || [];
+    return rows.length > 0 ? rows[0].dateKey ?? null : null;
+  } catch (e) {
+    console.warn("[DB] getEarliestLogDate failed:", e);
+    return null;
+  }
+}
+
 export async function getHourlyAverages(userId: number, days: number = 30) {
   const db = await getDb();
   if (!db) return [];

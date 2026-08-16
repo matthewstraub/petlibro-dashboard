@@ -70,3 +70,13 @@
 - [x] Fix render.yaml: remove Render cron service (replaced by GitHub Actions)
 - [x] Fix cron.ts: update comment to reference GitHub Actions instead of Render cron
 - [x] Bug fix: maintenance alerts show negative numbers when overdue — display "overdue by X days" instead
+- [x] Analysis page: new /analysis route with 30 / 90 / All-time range presets
+- [x] Analysis: shared/analytics.ts pure module (dense series, calendar-window rolling averages, split-half trend verdict)
+- [x] Analysis: getDailyTotalsByDate DB helper — DATE_FORMAT keys and MAX() dedup for rows missing a unique (userId, date) key
+- [x] Analysis: getEarliestLogDate DB helper so "All time" anchors coverage to real data
+- [x] Analysis: history.dailySeries tRPC procedure with 29-day lead-in fetch so the 30-day average is populated from the first visible day
+- [x] Analysis: ComposedChart with daily bars + 7-day and 30-day rolling averages, connectNulls={false} so gaps render as breaks
+- [x] Analysis: trend verdict card ("Up 12% over the last 90 days") plus coverage note ("98 of 104 days recorded")
+- [x] Analysis: missing days excluded from averages rather than zero-filled; today's partial row plotted but excluded from all math
+- [x] Analysis: AnalysisTooltip keyed on dataKey (not name) so multi-series charts keep their unit labels
+- [x] Analysis: 44 unit tests for the analytics module; vitest include widened to cover shared/
