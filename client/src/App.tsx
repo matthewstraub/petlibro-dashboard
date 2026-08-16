@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
 import Trends from "./pages/Trends";
+import Analysis from "./pages/Analysis";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import { useAuth } from "./hooks/useAuth";
@@ -33,6 +34,7 @@ function AuthenticatedApp() {
       <Switch>
         <Route path={"/"} component={Home} />
         <Route path={"/trends"} component={Trends} />
+        <Route path={"/analysis"} component={Analysis} />
         <Route path={"/settings"} component={Settings} />
         <Route path={"/404"} component={NotFound} />
         <Route component={NotFound} />
