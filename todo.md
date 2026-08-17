@@ -80,3 +80,15 @@
 - [x] Analysis: missing days excluded from averages rather than zero-filled; today's partial row plotted but excluded from all math
 - [x] Analysis: AnalysisTooltip keyed on dataKey (not name) so multi-series charts keep their unit labels
 - [x] Analysis: 44 unit tests for the analytics module; vitest include widened to cover shared/
+- [x] Research: probe Petlibro API for recoverable history predating the sync — found /data/deviceDrinkWater/history (day/week/month/year dimensions), used by the app but no public client
+- [x] Research: measured retention at ~170 days rolling — all of 2024/2025 returns zeros despite the device being in use since March 2025; contradicts Petlibro's "retained until factory reset" FAQ
+- [x] Document API findings, response shapes, and retention evidence in docs/petlibro-history-api.md
+- [x] Backfill: add getDrinkHistory() to the Petlibro API client
+- [x] Backfill: include timezone in the getOrCreateAPI cache key — history day-bucketing follows the timezone header
+- [x] Backfill: pure server/backfill.ts (month enumeration, response parsing, write selection)
+- [x] Backfill: CRON_SECRET-protected /api/backfill with months / dryRun / overwrite params
+- [x] Backfill: skip zero days rather than writing 0-mL rows, so outages don't masquerade as no-drinking days
+- [x] Backfill: never rewrite today (live sync owns the in-progress day); idempotent re-runs
+- [x] Backfill: 26 unit tests covering parsing, month enumeration, and write selection
+- [ ] Backfill follow-up: use dimension=day (24 hourly buckets) to repair hourly_water_log, which currently stores cumulative day totals under the sync hour
+- [ ] Sync robustness: the cron only writes today/yesterday, so outages >2 days become permanent once Petlibro's ~170-day window rolls past them — consider a periodic self-healing backfill

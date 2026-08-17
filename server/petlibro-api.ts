@@ -80,6 +80,31 @@ export interface WorkRecord {
   [key: string]: any;
 }
 
+/**
+ * Response from /data/deviceDrinkWater/history.
+ *
+ * The three data arrays and `xdate` are parallel; their length and meaning
+ * depend on `dimension`:
+ *   day   -> 24 entries, one per hour, xdate "00:00".."23:00"
+ *   month -> one per day of that month, xdate "YYYY-MM-DD"
+ *   year  -> 12 entries, one per month, xdate "YYYY-MM"
+ *
+ * Verified against a live PLWF105 account on 2026-08-16.
+ */
+export interface DrinkHistoryData {
+  legendData?: string[];
+  waterIntake?: number[];
+  drinkTimes?: number[];
+  avgDrinkDuration?: number[];
+  xdate?: string[];
+  totalMl?: number;
+  avgDrinkMl?: number | null;
+  dailyAvgDrinkMl?: number;
+  [key: string]: any;
+}
+
+export type DrinkHistoryDimension = "day" | "week" | "month" | "year";
+
 export interface DeviceEvent {
   eventId?: string;
   eventType?: string;
@@ -296,6 +321,34 @@ export class PetlibroAPI {
     }
   }
 
+  /**
+   * Historical drinking data — the endpoint backing the mobile app's charts.
+   *
+   * Unlike `todayDrinkData` (today + yesterday only), this accepts an arbitrary
+   * period. Note that Petlibro only retains roughly 170 days: older periods
+   * return a well-formed response with all-zero arrays rather than an error.
+   *
+   * `dimensionParam` format is strict — "YYYY-MM-DD" for day/week, "YYYY-MM"
+   * for month, "YYYY" for year. Other formats return code 1002/1001.
+   * `endDay` is required only for `dimension: "week"`.
+   */
+  async getDrinkHistory(
+    deviceSn: string,
+    dimension: DrinkHistoryDimension,
+    dimensionParam: string,
+    endDay?: string
+  ): Promise<DrinkHistoryData | null> {
+    try {
+      const payload: Record<string, unknown> = { deviceSn, dimension, dimensionParam };
+      if (endDay) payload.endDay = endDay;
+      const data = await this.post("/data/deviceDrinkWater/history", payload);
+      return data || null;
+    } catch (error: any) {
+      console.error("[PetlibroAPI] getDrinkHistory error:", error.message);
+      return null;
+    }
+  }
+
   async getFountainStatus(deviceSn: string): Promise<FountainStatus | null> {
     try {
       const realInfo = await this.getDeviceRealInfo(deviceSn);
@@ -334,8 +387,18 @@ export class PetlibroAPI {
 // Cache API instances per user to avoid repeated logins
 const apiCache = new Map<string, { api: PetlibroAPI; expiresAt: number }>();
 
-export function getOrCreateAPI(email: string, password: string, region: string): PetlibroAPI {
-  const key = `${email}:${region}`;
+/**
+ * The timezone is part of the cache key, not just the constructor: the API
+ * buckets historical data by the `timezone` header, so two callers using
+ * different zones must not share an instance.
+ */
+export function getOrCreateAPI(
+  email: string,
+  password: string,
+  region: string,
+  timezone: string = "America/New_York"
+): PetlibroAPI {
+  const key = `${email}:${region}:${timezone}`;
   const cached = apiCache.get(key);
   const now = Date.now();
 
@@ -343,7 +406,7 @@ export function getOrCreateAPI(email: string, password: string, region: string):
     return cached.api;
   }
 
-  const api = new PetlibroAPI(email, password, region);
+  const api = new PetlibroAPI(email, password, region, timezone);
   apiCache.set(key, { api, expiresAt: now + 30 * 60 * 1000 }); // 30 min cache
   return api;
 }

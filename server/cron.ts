@@ -1,9 +1,13 @@
 import type { Express } from "express";
 import { getDb } from "./db";
 import { getOrCreateAPI } from "./petlibro-api";
-import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials, upsertDrinkingSessions, getSessionIntegrity } from "./db";
+import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials, upsertDrinkingSessions, getSessionIntegrity, getDailyTotalsByDate } from "./db";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
+import { addDaysToKey } from "@shared/analytics";
+import { enumerateMonthKeys, monthKeyOf, parseMonthlyHistory, selectDaysToWrite } from "./backfill";
 import { sql } from "drizzle-orm";
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Register cron job endpoints.
@@ -175,6 +179,130 @@ export function registerCronRoutes(app: Express) {
       console.error("[Cron] Sync failed:", error);
       // Keep error response minimal to avoid "response too big" issues with external cron services
       res.status(500).json({ success: false, error: "Sync failed" });
+    }
+  });
+
+  /**
+   * Backfill historical daily totals from Petlibro's own history endpoint.
+   *
+   * The live sync only ever writes today and yesterday, so any outage longer
+   * than two days leaves a permanent hole — and history predating the sync was
+   * never captured at all. This walks month by month and fills those in.
+   *
+   * Petlibro retains only ~170 days, so this is also a race: anything older is
+   * already gone, and the window keeps rolling forward.
+   *
+   * Query params:
+   *   secret     CRON_SECRET (or the x-cron-secret header)
+   *   months     how many months back to walk (default 6, max 24)
+   *   overwrite  "true" to replace existing rows; default is fill-only
+   *   dryRun     "true" to report what would be written without writing
+   */
+  app.get("/api/backfill", async (req, res) => {
+    const secret = req.headers["x-cron-secret"] || req.query.secret;
+    const expectedSecret = process.env.CRON_SECRET;
+
+    if (!expectedSecret) {
+      res.status(500).json({ error: "CRON_SECRET not configured" });
+      return;
+    }
+    if (secret !== expectedSecret) {
+      res.status(401).json({ error: "Invalid cron secret" });
+      return;
+    }
+
+    const months = Math.min(Math.max(parseInt(String(req.query.months ?? "6"), 10) || 6, 1), 24);
+    const overwrite = req.query.overwrite === "true";
+    const dryRun = req.query.dryRun === "true";
+
+    try {
+      const db = await getDb();
+      if (!db) {
+        res.status(500).json({ error: "Database not available" });
+        return;
+      }
+
+      const credsResult = await db.execute(sql`
+        SELECT userId FROM petlibro_credentials WHERE deviceSn IS NOT NULL
+      `);
+      const userIds = ((credsResult as any)[0] || []).map((r: any) => r.userId);
+
+      const results: Array<Record<string, unknown>> = [];
+
+      for (const userId of userIds) {
+        const cred = await getCredentials(userId);
+        if (!cred || !cred.deviceSn) continue;
+
+        const userTz = cred.timezone || "America/New_York";
+        const api = getOrCreateAPI(cred.email, cred.password, cred.region, userTz);
+
+        const todayKey = getLocalDateTime(userTz).date;
+        const startKey = addDaysToKey(todayKey, -(months * 31));
+        const monthKeys = enumerateMonthKeys(monthKeyOf(startKey), monthKeyOf(todayKey));
+
+        // One lookup for the whole span tells us which days already exist, so
+        // fill-only mode doesn't need a query per day.
+        const existingRows = await getDailyTotalsByDate(userId, `${monthKeys[0]}-01`, todayKey);
+        const existing = new Set(existingRows.map(r => r.dateKey));
+
+        let found = 0;
+        let written = 0;
+        let skipped = 0;
+        const monthsWithData: string[] = [];
+
+        for (const monthKey of monthKeys) {
+          // Rate limits are undocumented; upstream clients self-throttle, so
+          // pace the walk rather than bursting a year of requests.
+          await sleep(1200);
+
+          const history = await api.getDrinkHistory(cred.deviceSn, "month", monthKey);
+          const days = parseMonthlyHistory(history, { monthKey });
+          if (days.length > 0) monthsWithData.push(monthKey);
+          found += days.length;
+
+          const { toWrite, skippedExisting } = selectDaysToWrite(days, {
+            existing,
+            todayKey,
+            overwrite,
+          });
+          skipped += skippedExisting;
+
+          for (const day of toWrite) {
+            if (!dryRun) {
+              await upsertDailyLog({
+                userId,
+                date: new Date(day.dateKey),
+                totalMl: day.totalMl,
+                drinkingCount: day.drinkingCount,
+                totalDrinkingTime: day.totalDrinkingTime,
+                avgDrinkDuration: day.avgDrinkDuration,
+              });
+            }
+            // Keep the set current so a later month can't rewrite an earlier
+            // month's day if the API returns overlapping ranges.
+            existing.add(day.dateKey);
+            written++;
+          }
+        }
+
+        results.push({
+          userId,
+          monthsQueried: monthKeys.length,
+          monthsWithData,
+          daysFound: found,
+          daysWritten: written,
+          daysSkippedAlreadyPresent: skipped,
+          earliestRecoverable: monthsWithData[0] ?? null,
+        });
+        console.log(
+          `[Backfill] user ${userId}: ${found} days found, ${written} written, ${skipped} already present`
+        );
+      }
+
+      res.json({ success: true, dryRun, overwrite, results, timestamp: new Date().toISOString() });
+    } catch (error: any) {
+      console.error("[Backfill] Failed:", error);
+      res.status(500).json({ success: false, error: "Backfill failed" });
     }
   });
 
