@@ -286,7 +286,9 @@ See [`docs/session-sync-strategies.md`](docs/session-sync-strategies.md) for the
 
 The **Analysis** page answers "is my cat drinking more or less than she used to?" — a question the fixed-window Trends charts can't, because day-to-day intake is noisy enough to hide a real month-long drift.
 
-Pick a range (30 days / 90 days / All time) and you get daily intake as bars with **7-day and 30-day rolling averages** overlaid, a one-sentence verdict ("Up 12% over the last 90 days — averaging 188 mL/day, versus 168 mL/day before that"), and a coverage note.
+Pick a range — **30 days / 90 days / All time / Custom** — and you get daily intake as bars with **7-day and 30-day rolling averages** overlaid, a one-sentence verdict ("Up 12% over the last 90 days — averaging 188 mL/day, versus 168 mL/day before that"), and a coverage note.
+
+**Custom** opens a two-month range picker for any window you like. The verdict adapts its wording: a window ending today reads "over the last 61 days", while a historical one reads "from Mar 1 to Apr 30". Rolling averages still get their 29-day lead-in, so both lines are populated from the first visible day rather than ramping up.
 
 ### How gaps are handled
 

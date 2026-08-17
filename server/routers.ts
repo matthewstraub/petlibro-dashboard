@@ -25,7 +25,23 @@ import {
 import { PetlibroAPI, getOrCreateAPI } from "./petlibro-api";
 import { hashPassword, verifyPassword, createSessionToken } from "./auth";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
-import { addDaysToKey, MAX_WINDOW_DAYS } from "@shared/analytics";
+import { addDaysToKey, daysBetweenKeys, isDateKey, MAX_WINDOW_DAYS } from "@shared/analytics";
+
+/** A calendar day, validated for shape *and* for actually existing. */
+const DATE_KEY_SCHEMA = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine(key => {
+    // Reject impossible dates like 2026-02-30, which the regex alone allows.
+    const [y, m, d] = key.split("-").map(Number);
+    const asUtc = new Date(Date.UTC(y, m - 1, d));
+    return (
+      asUtc.getUTCFullYear() === y && asUtc.getUTCMonth() === m - 1 && asUtc.getUTCDate() === d
+    );
+  }, "Not a valid calendar date");
+
+/** Upper bound on a custom window; matches the rangeDays cap. */
+const MAX_RANGE_DAYS = 1826;
 
 export const appRouter = router({
   auth: router({
@@ -478,6 +494,20 @@ export const appRouter = router({
       .input(z.object({
         // null = all history; the server resolves the real earliest date.
         rangeDays: z.number().int().min(1).max(1826).nullable(),
+        // An explicit window. When present it wins over rangeDays — the two are
+        // alternatives, and nesting the pair makes that either/or legible at
+        // the call site rather than leaving three flat fields to reconcile.
+        range: z.object({
+          startDate: DATE_KEY_SCHEMA,
+          endDate: DATE_KEY_SCHEMA,
+        })
+          .refine(r => r.startDate <= r.endDate, {
+            message: "startDate must be on or before endDate",
+          })
+          .refine(r => daysBetweenKeys(r.startDate, r.endDate) + 1 <= MAX_RANGE_DAYS, {
+            message: `range may not exceed ${MAX_RANGE_DAYS} days`,
+          })
+          .optional(),
       }))
       .query(async ({ ctx, input }) => {
         const creds = await getCredentials(ctx.user.id);
@@ -485,7 +515,17 @@ export const appRouter = router({
         const todayKey = getLocalDateTime(userTz).date;
 
         let startKey: string;
-        if (input.rangeDays !== null) {
+        let endKey = todayKey;
+
+        if (input.range) {
+          startKey = input.range.startDate;
+          // Clamp to today: future days hold no data and would render as a
+          // stretch of empty chart that drags the coverage figure down.
+          endKey = input.range.endDate > todayKey ? todayKey : input.range.endDate;
+          if (startKey > endKey) {
+            return { rows: [], startKey: endKey, endKey, todayKey };
+          }
+        } else if (input.rangeDays !== null) {
           startKey = addDaysToKey(todayKey, -(input.rangeDays - 1));
         } else {
           const earliest = await getEarliestLogDate(ctx.user.id);
@@ -498,9 +538,9 @@ export const appRouter = router({
         // Widen the fetch so trailing averages are populated from the first
         // displayed day instead of ramping up across the visible range.
         const fetchStart = addDaysToKey(startKey, -(MAX_WINDOW_DAYS - 1));
-        const rows = await getDailyTotalsByDate(ctx.user.id, fetchStart, todayKey);
+        const rows = await getDailyTotalsByDate(ctx.user.id, fetchStart, endKey);
 
-        return { rows, startKey, endKey: todayKey, todayKey };
+        return { rows, startKey, endKey, todayKey };
       }),
 
     exportAll: protectedProcedure.query(async ({ ctx }) => {

@@ -90,5 +90,10 @@
 - [x] Backfill: skip zero days rather than writing 0-mL rows, so outages don't masquerade as no-drinking days
 - [x] Backfill: never rewrite today (live sync owns the in-progress day); idempotent re-runs
 - [x] Backfill: 26 unit tests covering parsing, month enumeration, and write selection
+- [x] Analysis: custom date range picker (DateRangePicker on Calendar range mode) alongside the 30/90/All presets
+- [x] Analysis: history.dailySeries accepts an explicit range; validates calendar-real dates, ordering, and a span cap; clamps a future end to today
+- [x] Analysis: verdict copy switches from "over the last N days" to "from X to Y" when the window does not end today
+- [x] Analysis: the "today is in progress" footnote only shows when today is actually in range
+- [x] Analysis: use shared/dates formatDateKey instead of the inlined copy
 - [ ] Backfill follow-up: use dimension=day (24 hourly buckets) to repair hourly_water_log, which currently stores cumulative day totals under the sync hour
 - [ ] Sync robustness: the cron only writes today/yesterday, so outages >2 days become permanent once Petlibro's ~170-day window rolls past them — consider a periodic self-healing backfill

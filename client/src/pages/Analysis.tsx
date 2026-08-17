@@ -20,6 +20,7 @@ import {
   ArrowUpRight,
   Activity,
   CalendarCheck,
+  CalendarRange,
   Droplets,
   Loader2,
   Minus,
@@ -28,23 +29,24 @@ import {
 import { useMemo, useState } from "react";
 import { useUnit } from "@/contexts/UnitContext";
 import { buildSeries, summarize, computeTrend, type SeriesPoint } from "@shared/analytics";
+import { formatDateKey } from "@shared/dates";
+import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker";
 
-const PRESETS = [
-  { label: "30 days", rangeDays: 30 as number | null },
-  { label: "90 days", rangeDays: 90 as number | null },
-  { label: "All time", rangeDays: null as number | null },
+type PresetId = "30d" | "90d" | "all" | "custom";
+
+const PRESETS: Array<{ id: PresetId; label: string; rangeDays: number | null }> = [
+  { id: "30d", label: "30 days", rangeDays: 30 },
+  { id: "90d", label: "90 days", rangeDays: 90 },
+  { id: "all", label: "All time", rangeDays: null },
+  { id: "custom", label: "Custom", rangeDays: null },
 ];
 
-/**
- * Format a "YYYY-MM-DD" key for display.
- *
- * Builds the Date from parts so it lands on *local* midnight. `new Date(key)`
- * would parse as UTC midnight and render as the previous day for anyone west of
- * UTC — the bug already present in Trends.tsx's formatDate.
- */
-function formatDateKey(key: string, options: Intl.DateTimeFormatOptions): string {
-  const [year, month, day] = key.split("-").map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString("en-US", options);
+/** Local Date -> "YYYY-MM-DD", reading local parts so the picked day is kept. */
+function toLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 const SERIES_LABELS: Record<string, { label: string; partialLabel?: string }> = {
@@ -149,9 +151,32 @@ function StatTile({
 
 export default function Analysis() {
   const { convert, format: formatValue, label: unitLabel, unit, toggleUnit } = useUnit();
-  const [rangeDays, setRangeDays] = useState<number | null>(30);
+  const [presetId, setPresetId] = useState<PresetId>("30d");
+  const [customRange, setCustomRange] = useState<DateRange | undefined>();
 
-  const query = trpc.history.dailySeries.useQuery({ rangeDays }, { staleTime: 5 * 60_000 });
+  const isCustom = presetId === "custom";
+  // A half-picked range (start chosen, end pending) isn't a window yet.
+  const customComplete = Boolean(customRange?.from && customRange?.to);
+  const activePreset = PRESETS.find(p => p.id === presetId)!;
+
+  const queryInput = useMemo(() => {
+    if (isCustom && customRange?.from && customRange?.to) {
+      return {
+        rangeDays: null,
+        range: {
+          startDate: toLocalDateKey(customRange.from),
+          endDate: toLocalDateKey(customRange.to),
+        },
+      };
+    }
+    return { rangeDays: activePreset.rangeDays };
+  }, [isCustom, customRange, activePreset]);
+
+  const query = trpc.history.dailySeries.useQuery(queryInput, {
+    staleTime: 5 * 60_000,
+    // Don't fire on a half-picked custom range; keep the last result on screen.
+    enabled: !isCustom || customComplete,
+  });
 
   // All analytics run in mL. Nothing here converts.
   const points: SeriesPoint[] = useMemo(() => {
@@ -207,22 +232,32 @@ export default function Analysis() {
 
   const presetRow = (
     <div className="flex items-center justify-between gap-4 flex-wrap">
-      <div className="inline-flex items-center gap-1 rounded-lg bg-secondary p-1">
-        {PRESETS.map(preset => (
-          <Button
-            key={preset.label}
-            size="sm"
-            variant="ghost"
-            aria-pressed={rangeDays === preset.rangeDays}
-            onClick={() => setRangeDays(preset.rangeDays)}
-            className={cn(
-              "h-7 px-3 text-xs",
-              rangeDays === preset.rangeDays && "bg-background shadow-sm"
-            )}
-          >
-            {preset.label}
-          </Button>
-        ))}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="inline-flex items-center gap-1 rounded-lg bg-secondary p-1">
+          {PRESETS.map(preset => (
+            <Button
+              key={preset.id}
+              size="sm"
+              variant="ghost"
+              aria-pressed={presetId === preset.id}
+              onClick={() => setPresetId(preset.id)}
+              className={cn(
+                "h-7 px-3 text-xs",
+                presetId === preset.id && "bg-background shadow-sm"
+              )}
+            >
+              {preset.label}
+            </Button>
+          ))}
+        </div>
+        {isCustom && (
+          <DateRangePicker
+            range={customRange}
+            onSelect={setCustomRange}
+            disabled={date => date > new Date()}
+            placeholder="Pick a date range"
+          />
+        )}
       </div>
       {summary.daysInRange > 0 && (
         <span className="text-xs text-muted-foreground">
@@ -234,10 +269,39 @@ export default function Analysis() {
     </div>
   );
 
-  if (query.isLoading) {
+  // Custom selected but only half-picked: prompt rather than falling through to
+  // the no-data card, which would read as "you have no history".
+  if (isCustom && !customComplete) {
     return (
       <div className="space-y-6">
         {header}
+        {presetRow}
+        <Card className="glass-card">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <CalendarRange className="h-5 w-5" />
+              <div>
+                <p className="font-medium text-foreground">
+                  {customRange?.from ? "Pick an end date" : "Pick a date range"}
+                </p>
+                <p className="text-sm mt-1">
+                  {customRange?.from
+                    ? "Choose the day the range should end on."
+                    : "Choose a start and end date to analyse any window you like."}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (query.isLoading || query.isFetching) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {presetRow}
         <Card className="glass-card">
           <CardContent className="pt-6 flex items-center justify-center h-[360px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -293,6 +357,13 @@ export default function Analysis() {
   }
 
   const rangeLabel = `${summary.daysInRange} days`;
+  // "over the last N days" is only true for a window ending today. A custom
+  // range that ended in April needs naming, not a relative phrase.
+  const endsToday = query.data ? query.data.endKey === query.data.todayKey : true;
+  const periodPhrase =
+    endsToday || !query.data
+      ? `over the last ${rangeLabel}`
+      : `from ${formatDateKey(query.data.startKey, { month: "short", day: "numeric" })} to ${formatDateKey(query.data.endKey, { month: "short", day: "numeric" })}`;
   const TrendIcon =
     trend.direction === "up" ? ArrowUpRight : trend.direction === "down" ? ArrowDownRight : Minus;
   const trendColor =
@@ -309,17 +380,14 @@ export default function Analysis() {
     subline = `Comparing two halves of this range needs at least 5 recorded days in each. You have ${trend.priorDays} and ${trend.recentDays}.`;
   } else if (trend.percentChange === null) {
     // Baseline of zero: a percentage would be meaningless, so report direction only.
-    headline =
-      trend.direction === "up"
-        ? `Up over the last ${rangeLabel}`
-        : `Holding steady over the last ${rangeLabel}`;
+    headline = trend.direction === "up" ? `Up ${periodPhrase}` : `Holding steady ${periodPhrase}`;
     subline = `The earlier half averaged ${formatValue(trend.priorMean ?? 0)} ${unitLabel}/day, so there's no percentage to report.`;
   } else if (trend.direction === "flat") {
-    headline = `Holding steady over the last ${rangeLabel}`;
+    headline = `Holding steady ${periodPhrase}`;
     subline = `Averaging ${formatValue(trend.recentMean!)} ${unitLabel}/day — about the same as the ${trend.priorDays} days before.`;
   } else {
     const pct = Math.abs(Math.round(trend.percentChange));
-    headline = `${trend.direction === "up" ? "Up" : "Down"} ${pct}% over the last ${rangeLabel}`;
+    headline = `${trend.direction === "up" ? "Up" : "Down"} ${pct}% ${periodPhrase}`;
     subline = `Averaging ${formatValue(trend.recentMean!)} ${unitLabel}/day, versus ${formatValue(trend.priorMean!)} ${unitLabel}/day before that.`;
   }
 
@@ -452,9 +520,12 @@ export default function Analysis() {
           </div>
 
           <p className="text-xs text-muted-foreground mt-2">
-            Today is still in progress and is excluded from the averages and the trend.
+            {/* Only true when the window actually reaches today — a custom range
+                ending in the past has no in-progress day to caveat. */}
+            {points.some(p => p.isPartial) &&
+              "Today is still in progress and is excluded from the averages and the trend. "}
             {!hasAnyAvg30 &&
-              " The 30-day average appears once there are 18 recorded days to draw on."}
+              "The 30-day average appears once there are 18 recorded days to draw on."}
           </p>
         </CardContent>
       </Card>
