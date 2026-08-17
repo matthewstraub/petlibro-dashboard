@@ -308,6 +308,32 @@ The math lives in [`shared/analytics.ts`](shared/analytics.ts) — a pure, depen
 
 ---
 
+## Historical Backfill
+
+The live sync only ever writes **today and yesterday**, so any outage longer than two days leaves a permanent hole — and history predating your first sync was never captured at all. `/api/backfill` recovers both from Petlibro's own history endpoint.
+
+```bash
+curl -H "x-cron-secret: $CRON_SECRET" "$APP_URL/api/backfill?months=6&dryRun=true"
+```
+
+| Param | Default | Meaning |
+|-------|---------|---------|
+| `months` | `6` | How many months back to walk (max 24) |
+| `dryRun` | `false` | Report what *would* be written, without writing |
+| `overwrite` | `false` | Replace existing rows; default fills only missing days |
+
+Start with `dryRun=true` to see what's recoverable, then drop it to commit. The operation is **idempotent** — re-running writes nothing new — and it never touches today's row, which the live sync owns while the day is still in progress.
+
+One call per month covers ~31 days, so a full run is about seven requests, paced 1.2s apart.
+
+> ### ⏳ Petlibro only retains ~170 days
+>
+> Anything older is **permanently gone** — verified against a device in use since March 2025, where all of 2024 and 2025 returns empty. The window rolls forward daily, so this database is the only durable archive of your history. Back-fill sooner rather than later.
+>
+> Full findings, response shapes, and evidence: [`docs/petlibro-history-api.md`](docs/petlibro-history-api.md).
+
+---
+
 ## Cron Sync Strategy
 
 The recommended approach is the included **GitHub Actions workflow** (`.github/workflows/sync.yml`), which uses a wake-then-sync pattern to handle Render's free tier cold starts. See the deployment section above for setup.
