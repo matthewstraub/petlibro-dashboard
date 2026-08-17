@@ -98,5 +98,7 @@
 - [x] Analysis: exclude zero-intake days from averages and the trend — a stored 0 means travel/fountain-off, not a low reading, and the sync writes real 0 rows while the backfill skips them, so the two halves were being scored inconsistently
 - [x] Analysis: report zero days separately in coverage ("136 of 170 with intake · 28 with none · 5 missing") and in the tile
 - [x] Analysis: tooltip says "No drinking recorded" on a zero day instead of "0.00 fl oz"
-- [ ] Backfill follow-up: use dimension=day (24 hourly buckets) to repair hourly_water_log, which currently stores cumulative day totals under the sync hour
+- [x] Fix hourly_water_log: sync now stores real 24-hour buckets from dimension=day instead of the cumulative day total filed under the sync hour
+- [x] Add replaceHourlyLogsForDate (DELETE + bulk INSERT, 2 queries per day instead of 48) — no unique key exists to upsert against
+- [x] Optional /api/backfill?hourlyDays=N repair, capped at 60, so the Time-of-Day chart is correct immediately rather than in 30 days
 - [x] Sync robustness: weekly scheduled backfill (months=2, writes, fill-only) so outages self-heal well inside Petlibro's ~170-day window

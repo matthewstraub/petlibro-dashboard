@@ -1,10 +1,10 @@
 import type { Express } from "express";
 import { getDb } from "./db";
 import { getOrCreateAPI } from "./petlibro-api";
-import { upsertDailyLog, upsertHourlyLog, updateLastSync, getCredentials, upsertDrinkingSessions, getSessionIntegrity, getDailyTotalsByDate } from "./db";
+import { upsertDailyLog, updateLastSync, getCredentials, upsertDrinkingSessions, getSessionIntegrity, getDailyTotalsByDate, replaceHourlyLogsForDate } from "./db";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
 import { addDaysToKey } from "@shared/analytics";
-import { enumerateMonthKeys, monthKeyOf, parseMonthlyHistory, selectDaysToWrite } from "./backfill";
+import { enumerateMonthKeys, monthKeyOf, parseDailyHistory, parseMonthlyHistory, selectDaysToWrite } from "./backfill";
 import { sql } from "drizzle-orm";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -72,13 +72,19 @@ export function registerCronRoutes(app: Express) {
             avgDrinkDuration: drinkData.avgDrinkDuration || 0,
           });
 
-          await upsertHourlyLog({
-            userId: cred.userId,
-            date: new Date(today),
-            hour: currentHour,
-            totalMl: drinkData.todayTotalMl || 0,
-            drinkingCount: drinkData.todayTotalTimes || 0,
-          });
+          // Real per-hour buckets from the history endpoint. This previously
+          // stored the cumulative day total under whichever hour the sync ran,
+          // so the Time-of-Day chart described sync timing rather than the pet.
+          try {
+            const dayHistory = await api.getDrinkHistory(cred.deviceSn, "day", today);
+            const hours = parseDailyHistory(dayHistory);
+            if (hours.length > 0) {
+              await replaceHourlyLogsForDate(cred.userId, today, hours);
+            }
+          } catch (hourlyErr) {
+            console.error(`[Cron] Hourly breakdown failed for user ${userId}:`, hourlyErr);
+            // Non-fatal: daily totals are the primary record.
+          }
 
           // Also save yesterday if available
           if (drinkData.yesterdayTotalMl > 0) {
@@ -214,6 +220,9 @@ export function registerCronRoutes(app: Express) {
     const months = Math.min(Math.max(parseInt(String(req.query.months ?? "6"), 10) || 6, 1), 24);
     const overwrite = req.query.overwrite === "true";
     const dryRun = req.query.dryRun === "true";
+    // Hourly repair costs one API call per day, so it is opt-in and capped.
+    // 30 covers everything the Time-of-Day chart can display.
+    const hourlyDays = Math.min(Math.max(parseInt(String(req.query.hourlyDays ?? "0"), 10) || 0, 0), 60);
 
     try {
       const db = await getDb();
@@ -285,6 +294,30 @@ export function registerCronRoutes(app: Express) {
           }
         }
 
+        // Optional hourly repair. Deliberately bounded and off by default: the
+        // Time-of-Day chart only reads the last 30 days, so once the sync
+        // writes real buckets the chart corrects itself within a month anyway.
+        // This just makes it right immediately, at one API call per day.
+        let hoursRepairedDays = 0;
+        if (hourlyDays > 0) {
+          for (let back = 1; back <= hourlyDays; back++) {
+            const dateKey = addDaysToKey(todayKey, -back);
+            await sleep(1200);
+            try {
+              const dayHistory = await api.getDrinkHistory(cred.deviceSn, "day", dateKey);
+              const hours = parseDailyHistory(dayHistory);
+              // An all-zero day is a travel day; rewriting it with 24 zeros is
+              // correct and keeps the chart honest about quiet hours.
+              if (hours.length > 0 && !dryRun) {
+                await replaceHourlyLogsForDate(userId, dateKey, hours);
+              }
+              if (hours.length > 0) hoursRepairedDays++;
+            } catch (e) {
+              console.error(`[Backfill] Hourly repair failed for ${dateKey}:`, e);
+            }
+          }
+        }
+
         results.push({
           userId,
           monthsQueried: monthKeys.length,
@@ -293,6 +326,7 @@ export function registerCronRoutes(app: Express) {
           daysWritten: written,
           daysSkippedAlreadyPresent: skipped,
           earliestRecoverable: monthsWithData[0] ?? null,
+          ...(hourlyDays > 0 ? { hourlyDaysRequested: hourlyDays, hourlyDaysRepaired: hoursRepairedDays } : {}),
         });
         console.log(
           `[Backfill] user ${userId}: ${found} days found, ${written} written, ${skipped} already present`

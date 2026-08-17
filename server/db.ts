@@ -251,6 +251,47 @@ export async function upsertHourlyLog(data: InsertHourlyWaterLog) {
   }
 }
 
+/**
+ * Replace a day's hourly rows with an authoritative 24-hour breakdown.
+ *
+ * Delete-then-insert rather than upserting hour by hour: there is no unique key
+ * on (userId, date, hour), so `ON DUPLICATE KEY UPDATE` has nothing to catch
+ * on, and the per-hour path costs 48 round trips per day against 2 here. It is
+ * also self-healing — it clears the cumulative-total rows the old sync wrote
+ * for that day rather than leaving them interleaved with correct ones.
+ *
+ * Hours with no drinking are stored as 0. Unlike a zero *day*, a quiet hour is
+ * a real observation about when a pet drinks, which is the point of the chart.
+ */
+export async function replaceHourlyLogsForDate(
+  userId: number,
+  date: string,
+  hours: Array<{ hour: number; totalMl: number; drinkingCount: number }>
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (hours.length === 0) return 0;
+
+  try {
+    await db.execute(sql`
+      DELETE FROM hourly_water_log WHERE userId = ${userId} AND date = ${date}
+    `);
+
+    const values = hours.map(
+      h => sql`(${userId}, ${date}, ${h.hour}, ${h.totalMl}, ${h.drinkingCount})`
+    );
+    await db.execute(sql`
+      INSERT INTO hourly_water_log (userId, date, hour, totalMl, drinkingCount)
+      VALUES ${sql.join(values, sql`, `)}
+    `);
+
+    return hours.length;
+  } catch (e) {
+    console.warn(`[DB] replaceHourlyLogsForDate failed for ${date}:`, e);
+    return 0;
+  }
+}
+
 export async function getHourlyLogsForDate(userId: number, date: string) {
   const db = await getDb();
   if (!db) return [];

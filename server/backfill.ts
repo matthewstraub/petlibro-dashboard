@@ -68,6 +68,59 @@ export function enumerateMonthKeys(startMonth: string, endMonth: string): string
   return keys;
 }
 
+/** One hour of a day, from a `dimension: "day"` response. */
+export interface BackfillHour {
+  hour: number;
+  totalMl: number;
+  drinkingCount: number;
+}
+
+/**
+ * Turn one `dimension: "day"` response into per-hour rows.
+ *
+ * This is the genuine hourly breakdown. What the live sync has been storing in
+ * `hourly_water_log` is the *cumulative day total* filed under whichever hour
+ * the sync happened to run, so the Time-of-Day chart has been showing sync
+ * timing rather than drinking behaviour.
+ *
+ * Hours come from the response's own `xdate` ("00:00".."23:00") rather than the
+ * array index, for the same reason the monthly parser keys off dates: a short
+ * or offset array cannot then shift every bucket.
+ *
+ * Unlike the daily parser, zero hours are KEPT. A quiet hour is a real
+ * observation about when a pet drinks — the whole point of the chart — and
+ * unlike a zero *day* it does not imply the pet was absent.
+ */
+export function parseDailyHistory(data: DrinkHistoryData | null): BackfillHour[] {
+  if (!data) return [];
+
+  const labels = Array.isArray(data.xdate) ? data.xdate : [];
+  const intake = Array.isArray(data.waterIntake) ? data.waterIntake : [];
+  const times = Array.isArray(data.drinkTimes) ? data.drinkTimes : [];
+
+  const hours: BackfillHour[] = [];
+  const seen = new Set<number>();
+
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i];
+    if (typeof label !== "string") continue;
+
+    const match = /^(\d{1,2}):\d{2}$/.exec(label);
+    if (!match) continue;
+    const hour = Number(match[1]);
+    if (!Number.isInteger(hour) || hour < 0 || hour > 23 || seen.has(hour)) continue;
+
+    seen.add(hour);
+    hours.push({
+      hour,
+      totalMl: toNumber(intake[i]),
+      drinkingCount: Math.round(toNumber(times[i])),
+    });
+  }
+
+  return hours;
+}
+
 /**
  * Decide which recovered days should actually be written.
  *

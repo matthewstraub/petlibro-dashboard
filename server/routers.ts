@@ -10,13 +10,13 @@ import {
   upsertDailyLog,
   getDailyLogs,
   getMonthlyAverages,
-  upsertHourlyLog,
   getHourlyAverages,
   getDailyDetail,
   getDrinkingSessions,
   upsertDrinkingSessions,
   getSessionIntegrity,
   getDailyTotalsByDate,
+  replaceHourlyLogsForDate,
   getEarliestLogDate,
   getUserByUsername,
   createUser,
@@ -26,6 +26,7 @@ import { PetlibroAPI, getOrCreateAPI } from "./petlibro-api";
 import { hashPassword, verifyPassword, createSessionToken } from "./auth";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
 import { addDaysToKey, daysBetweenKeys, isDateKey, MAX_WINDOW_DAYS } from "@shared/analytics";
+import { parseDailyHistory } from "./backfill";
 
 /** A calendar day, validated for shape *and* for actually existing. */
 const DATE_KEY_SCHEMA = z
@@ -295,14 +296,16 @@ export const appRouter = router({
         });
       }
 
-      // Save hourly estimate
-      await upsertHourlyLog({
-        userId: ctx.user.id,
-        date: new Date(today),
-        hour: currentHour,
-        totalMl: drinkData.todayTotalMl || 0,
-        drinkingCount: drinkData.todayTotalTimes || 0,
-      });
+      // Real per-hour buckets, not the cumulative day total under one hour.
+      try {
+        const dayHistory = await api.getDrinkHistory(creds.deviceSn, "day", today);
+        const hours = parseDailyHistory(dayHistory);
+        if (hours.length > 0) {
+          await replaceHourlyLogsForDate(ctx.user.id, today, hours);
+        }
+      } catch (hourlyErr) {
+        console.error("[syncToday] Hourly breakdown failed:", hourlyErr);
+      }
 
       // Also sync individual drinking sessions
       try {
