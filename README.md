@@ -297,6 +297,7 @@ The sync can miss days, and only "today" and "yesterday" are ever written — so
 | Situation | Behavior |
 |-----------|----------|
 | Day with no row | Excluded from all averages, rendered as a **break** in the line — never counted as zero |
+| Day recording **zero** intake | Also excluded. A stored `0` means the fountain went unused — travel, or switched off — which is absence of the pet rather than a measurement of it. A cat drinking literally nothing for a full day is a medical emergency, not a data point to average. Reported separately as "N with none" |
 | Rolling average window | Measured in **calendar** days, not rows, so a gap can't silently stretch a "7-day" average across twelve |
 | Window that is mostly gaps | Yields no point at all (needs ≥60% of days: 5 of 7, 18 of 30) rather than a misleading one |
 | Today's row | Plotted as a muted bar, but excluded from every average and from the trend — it's always partial until the day ends |
