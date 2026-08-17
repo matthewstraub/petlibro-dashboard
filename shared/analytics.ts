@@ -18,19 +18,34 @@ export interface DailyRow {
 /** One day of the displayed range, with rolling averages attached. */
 export interface SeriesPoint {
   dateKey: string;
-  /** null when no data was recorded for this day. */
+  /** null when no row exists for this day. 0 when a row recorded no drinking. */
   totalMl: number | null;
   avg7: number | null;
   avg30: number | null;
   /** True only for the current local day, whose row is always incomplete. */
   isPartial: boolean;
+  /**
+   * A stored row of exactly 0 — the fountain recorded no drinking at all.
+   *
+   * For a resident pet this means absence (travel, the fountain unplugged),
+   * not a measurement of low intake: a cat drinking literally nothing for a
+   * full day would be a medical emergency, not a data point. So these are held
+   * out of every average and of the trend, and reported separately instead.
+   */
+  isZero: boolean;
 }
 
 export interface RangeSummary {
   daysInRange: number;
+  /** Days with actual intake — the basis for every statistic below. */
   daysRecorded: number;
+  /** Days with a stored row of 0, excluded from the statistics. */
+  zeroDays: number;
+  /** Days in range with no row at all. */
+  missingDays: number;
+  /** Share of the range we have any record for, zero days included. */
   coveragePct: number;
-  /** Mean of recorded, non-partial days. null when nothing was recorded. */
+  /** Mean of recorded, non-partial, non-zero days. null when there are none. */
   meanMl: number | null;
   totalMl: number;
   bestDay: { dateKey: string; totalMl: number } | null;
@@ -170,7 +185,9 @@ export function buildSeries(rows: DailyRow[], options: BuildSeriesOptions): Seri
       // drag every window down for the rest of the day.
       if (key === todayKey) continue;
       const value = byDate.get(key);
-      if (value !== undefined) {
+      // A zero day is an absent pet, not a low reading — see SeriesPoint.isZero.
+      // Averaging it in would describe the owner's travel schedule instead.
+      if (value !== undefined && value > 0) {
         sum += value;
         count++;
       }
@@ -188,15 +205,22 @@ export function buildSeries(rows: DailyRow[], options: BuildSeriesOptions): Seri
       avg7: trailingAverage(dateKey, shortWindow),
       avg30: trailingAverage(dateKey, longWindow),
       isPartial: dateKey === todayKey,
+      isZero: recorded !== undefined && recorded <= 0,
     };
   });
 }
 
-/** Recorded, complete days — the basis for every summary statistic. */
+/**
+ * Days that actually measured the pet — the basis for every statistic.
+ *
+ * Excludes missing days, today (still in progress), and zero days (absence
+ * rather than measurement). Keeping these three exclusions in one place is what
+ * stops the summary and the trend drifting apart.
+ */
 function completePoints(points: SeriesPoint[]): Array<{ dateKey: string; totalMl: number }> {
   const result: Array<{ dateKey: string; totalMl: number }> = [];
   for (const point of points) {
-    if (point.totalMl !== null && !point.isPartial) {
+    if (point.totalMl !== null && point.totalMl > 0 && !point.isPartial) {
       result.push({ dateKey: point.dateKey, totalMl: point.totalMl });
     }
   }
@@ -217,6 +241,8 @@ export function summarize(points: SeriesPoint[]): RangeSummary {
   const complete = completePoints(points);
   const daysInRange = points.length;
   const daysRecorded = complete.length;
+  const zeroDays = points.filter(p => p.isZero && !p.isPartial).length;
+  const missingDays = points.filter(p => p.totalMl === null).length;
 
   let bestDay: { dateKey: string; totalMl: number } | null = null;
   for (const day of complete) {
@@ -226,7 +252,12 @@ export function summarize(points: SeriesPoint[]): RangeSummary {
   return {
     daysInRange,
     daysRecorded,
-    coveragePct: daysInRange === 0 ? 0 : (daysRecorded / daysInRange) * 100,
+    zeroDays,
+    missingDays,
+    // A zero day is still a day we have a record for, so it counts toward
+    // coverage even though it is excluded from the statistics.
+    coveragePct:
+      daysInRange === 0 ? 0 : ((daysRecorded + zeroDays) / daysInRange) * 100,
     meanMl: mean(complete.map(d => d.totalMl)),
     totalMl: complete.reduce((sum, d) => sum + d.totalMl, 0),
     bestDay,

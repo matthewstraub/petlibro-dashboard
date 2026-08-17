@@ -25,7 +25,14 @@ function pointsFrom(
 ): SeriesPoint[] {
   return values.map((totalMl, i) => {
     const dateKey = addDaysToKey(startKey, i);
-    return { dateKey, totalMl, avg7: null, avg30: null, isPartial: dateKey === partialKey };
+    return {
+      dateKey,
+      totalMl,
+      avg7: null,
+      avg30: null,
+      isPartial: dateKey === partialKey,
+      isZero: totalMl !== null && totalMl <= 0,
+    };
   });
 }
 
@@ -258,6 +265,101 @@ describe("buildSeries", () => {
   });
 });
 
+describe("zero-intake days", () => {
+  // A stored 0 means the fountain went unused — travel, or switched off. For a
+  // resident pet that is absence, not a low reading, so it must not be averaged.
+  it("marks a stored zero distinctly from a missing day", () => {
+    const rows: DailyRow[] = [
+      { dateKey: "2026-06-01", totalMl: 100 },
+      { dateKey: "2026-06-02", totalMl: 0 },
+      // 2026-06-03 absent entirely
+    ];
+    const series = buildSeries(rows, { startKey: "2026-06-01", endKey: "2026-06-03" });
+
+    expect(series.map(p => p.totalMl)).toEqual([100, 0, null]);
+    expect(series.map(p => p.isZero)).toEqual([false, true, false]);
+  });
+
+  it("keeps zero days out of the rolling average", () => {
+    // Six real days at 100 plus one zero. The mean must stay 100, not 6/7 of it.
+    const rows: DailyRow[] = [
+      ...rowsFrom("2026-06-01", [100, 100, 100, 100, 100, 100]),
+      { dateKey: "2026-06-07", totalMl: 0 },
+    ];
+    const series = buildSeries(rows, { startKey: "2026-06-07", endKey: "2026-06-07" });
+
+    expect(series[0].avg7).toBe(100);
+    expect(series[0].avg7).not.toBe(600 / 7);
+  });
+
+  it("breaks the line rather than flatlining at zero across a travel block", () => {
+    // A full week away: no intake observations at all in the window.
+    const rows = rowsFrom("2026-06-01", [0, 0, 0, 0, 0, 0, 0]);
+    const series = buildSeries(rows, { startKey: "2026-06-07", endKey: "2026-06-07" });
+
+    // Null, not 0 — the chart draws a gap instead of a line pinned to the axis.
+    expect(series[0].avg7).toBeNull();
+  });
+
+  it("excludes zero days from the mean and the best day", () => {
+    const points = pointsFrom("2026-06-01", [100, 0, 200]);
+    const summary = summarize(points);
+
+    expect(summary.meanMl).toBe(150);
+    expect(summary.daysRecorded).toBe(2);
+    expect(summary.zeroDays).toBe(1);
+    expect(summary.totalMl).toBe(300);
+  });
+
+  it("counts zero days toward coverage but not toward intake days", () => {
+    // 5 days: 2 with intake, 2 zeros, 1 missing.
+    const points = pointsFrom("2026-06-01", [100, 0, 0, 200, null]);
+    const summary = summarize(points);
+
+    expect(summary.daysRecorded).toBe(2);
+    expect(summary.zeroDays).toBe(2);
+    expect(summary.missingDays).toBe(1);
+    // Four of five days have a record, even though only two measured intake.
+    expect(summary.coveragePct).toBe(80);
+  });
+
+  it("keeps zero days out of the trend comparison", () => {
+    // Both halves genuinely average 100; the recent half just has travel in it.
+    // Counting the zeros would invent a decline.
+    const points = pointsFrom("2026-06-01", [
+      ...new Array(10).fill(100),
+      ...new Array(5).fill(100),
+      ...new Array(5).fill(0),
+    ]);
+    const trend = computeTrend(points);
+
+    expect(trend.recentMean).toBe(100);
+    expect(trend.priorMean).toBe(100);
+    expect(trend.direction).toBe("flat");
+  });
+
+  it("reports insufficient rather than a false trend when a half is all travel", () => {
+    const points = pointsFrom("2026-06-01", [
+      ...new Array(10).fill(100),
+      ...new Array(10).fill(0),
+    ]);
+    const trend = computeTrend(points);
+
+    expect(trend.direction).toBe("insufficient");
+    expect(trend.recentDays).toBe(0);
+  });
+
+  it("does not treat today's zero as a travel day", () => {
+    // Today legitimately reads 0 early in the morning; it is already excluded
+    // as partial, and must not also inflate the zero-day count.
+    const points = pointsFrom("2026-06-01", [100, 100, 0], "2026-06-03");
+    const summary = summarize(points);
+
+    expect(summary.zeroDays).toBe(0);
+    expect(summary.daysRecorded).toBe(2);
+  });
+});
+
 describe("summarize", () => {
   it("reports coverage over the full range", () => {
     // 10 days, 8 recorded
@@ -397,16 +499,19 @@ describe("computeTrend", () => {
     expect(computeTrend(points).direction).toBe("insufficient");
   });
 
-  it("does not produce Infinity when the earlier half averages zero", () => {
+  it("reports insufficient, not a divide-by-zero, when the earlier half is all zeros", () => {
+    // Zeros are absence rather than measurement, so an all-zero half leaves
+    // nothing to compare against. Previously this produced a percentage off a
+    // zero baseline; now there is simply no baseline.
     const points = pointsFrom("2026-08-01", [
       ...new Array(10).fill(0),
       ...new Array(10).fill(100),
     ]);
     const trend = computeTrend(points);
 
+    expect(trend.direction).toBe("insufficient");
     expect(trend.percentChange).toBeNull();
-    expect(trend.direction).toBe("up");
-    expect(Number.isFinite(trend.recentMean!)).toBe(true);
+    expect(trend.priorDays).toBe(0);
   });
 
   it("ignores the partial day when comparing halves", () => {
