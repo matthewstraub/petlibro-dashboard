@@ -70,11 +70,16 @@ function AnalysisTooltip({ active, payload, label, unit, unitLabel }: any) {
   if (!active || !payload?.length) return null;
 
   const isPartial = Boolean(payload[0]?.payload?.isPartial);
+  const isZero = Boolean(payload[0]?.payload?.isZero) && !isPartial;
 
   // Recharts still emits an entry for null series values; without this filter a
   // gap day renders "NaN" in mL mode and throws on .toFixed in oz mode.
   const rows = payload
     .filter((entry: any) => entry.value != null && Number.isFinite(entry.value))
+    // On a no-intake day the daily 0 is noise — "0.00 fl oz" reads as a
+    // measurement when it means the fountain went unused. The note below says so
+    // in words instead. Rolling averages still show, since they span other days.
+    .filter((entry: any) => !(isZero && entry.dataKey === "totalMl"))
     .map((entry: any) => {
       // Key off dataKey, never name: `name` is human copy for the legend, and
       // branching on it is what makes Trends.tsx's tooltip drop the unit.
@@ -94,7 +99,8 @@ function AnalysisTooltip({ active, payload, label, unit, unitLabel }: any) {
       <p className="text-xs text-muted-foreground">
         {formatDateKey(label, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
       </p>
-      {rows.length === 0 ? (
+      {isZero && <p className="text-sm text-muted-foreground mt-1">No drinking recorded</p>}
+      {rows.length === 0 && !isZero ? (
         <p className="text-sm text-muted-foreground mt-1">No data recorded</p>
       ) : (
         rows.map((row: any) => (
@@ -197,6 +203,7 @@ export default function Analysis() {
       points.map(p => ({
         dateKey: p.dateKey,
         isPartial: p.isPartial,
+        isZero: p.isZero,
         totalMl: p.totalMl === null ? null : convert(p.totalMl),
         avg7: p.avg7 === null ? null : convert(p.avg7),
         avg30: p.avg30 === null ? null : convert(p.avg30),
@@ -261,9 +268,9 @@ export default function Analysis() {
       </div>
       {summary.daysInRange > 0 && (
         <span className="text-xs text-muted-foreground">
-          {summary.daysRecorded} of {summary.daysInRange} days recorded
-          {summary.daysRecorded < summary.daysInRange &&
-            ` · ${summary.daysInRange - summary.daysRecorded} missing`}
+          {summary.daysRecorded} of {summary.daysInRange} days with intake
+          {summary.zeroDays > 0 && ` · ${summary.zeroDays} with none`}
+          {summary.missingDays > 0 && ` · ${summary.missingDays} missing`}
         </span>
       )}
     </div>
@@ -416,8 +423,9 @@ export default function Analysis() {
         <CardHeader>
           <CardTitle className="text-base">Daily intake with rolling averages</CardTitle>
           <CardDescription>
-            Days with no recorded data are left blank. They're excluded from the averages, not
-            counted as zero.
+            Days with no recorded data are left blank, and days where the fountain recorded no
+            drinking at all — travel, or the fountain switched off — are excluded too. Both are
+            left out of the averages rather than counted as zero.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -556,10 +564,14 @@ export default function Analysis() {
         />
         <StatTile
           icon={CalendarCheck}
-          label="Days recorded"
+          label="Days with intake"
           value={`${summary.daysRecorded}`}
           unit={`of ${summary.daysInRange}`}
-          sub={`${Math.round(summary.coveragePct)}% coverage`}
+          sub={
+            summary.zeroDays > 0
+              ? `${summary.zeroDays} no-intake day${summary.zeroDays === 1 ? "" : "s"} excluded`
+              : `${Math.round(summary.coveragePct)}% coverage`
+          }
         />
       </div>
     </div>

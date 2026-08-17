@@ -95,5 +95,8 @@
 - [x] Analysis: verdict copy switches from "over the last N days" to "from X to Y" when the window does not end today
 - [x] Analysis: the "today is in progress" footnote only shows when today is actually in range
 - [x] Analysis: use shared/dates formatDateKey instead of the inlined copy
+- [x] Analysis: exclude zero-intake days from averages and the trend — a stored 0 means travel/fountain-off, not a low reading, and the sync writes real 0 rows while the backfill skips them, so the two halves were being scored inconsistently
+- [x] Analysis: report zero days separately in coverage ("136 of 170 with intake · 28 with none · 5 missing") and in the tile
+- [x] Analysis: tooltip says "No drinking recorded" on a zero day instead of "0.00 fl oz"
 - [ ] Backfill follow-up: use dimension=day (24 hourly buckets) to repair hourly_water_log, which currently stores cumulative day totals under the sync hour
 - [ ] Sync robustness: the cron only writes today/yesterday, so outages >2 days become permanent once Petlibro's ~170-day window rolls past them — consider a periodic self-healing backfill
