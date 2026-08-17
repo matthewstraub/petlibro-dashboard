@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  parseDailyHistory,
   parseMonthlyHistory,
   enumerateMonthKeys,
   monthKeyOf,
@@ -87,6 +88,84 @@ describe("month key helpers", () => {
   it("enumerateMonthKeys returns empty for an inverted or malformed range", () => {
     expect(enumerateMonthKeys("2026-05", "2026-02")).toEqual([]);
     expect(enumerateMonthKeys("nonsense", "2026-02")).toEqual([]);
+  });
+});
+
+/** Shaped like a real `dimension: "day"` response: 24 hourly buckets. */
+function dayResponse(hours: Array<{ hour: number; ml: number; times: number }>) {
+  const xdate: string[] = [];
+  const waterIntake: number[] = [];
+  const drinkTimes: number[] = [];
+  for (let h = 0; h < 24; h++) {
+    const match = hours.find(x => x.hour === h);
+    xdate.push(`${String(h).padStart(2, "0")}:00`);
+    waterIntake.push(match?.ml ?? 0);
+    drinkTimes.push(match?.times ?? 0);
+  }
+  return { waterIntake, drinkTimes, avgDrinkDuration: new Array(24).fill(0), xdate, totalMl: 0 };
+}
+
+describe("parseDailyHistory", () => {
+  it("returns all 24 hours, including quiet ones", () => {
+    // Unlike a zero DAY, a quiet hour is a real observation about when the pet
+    // drinks — that is precisely what the Time-of-Day chart is for.
+    const hours = parseDailyHistory(dayResponse([{ hour: 8, ml: 42, times: 3 }]));
+
+    expect(hours).toHaveLength(24);
+    expect(hours[8]).toEqual({ hour: 8, totalMl: 42, drinkingCount: 3 });
+    expect(hours[9]).toEqual({ hour: 9, totalMl: 0, drinkingCount: 0 });
+  });
+
+  it("keys the hour off xdate rather than the array index", () => {
+    const data = dayResponse([{ hour: 3, ml: 10, times: 1 }]);
+    // Response arrives offset — index 0 is 01:00, not 00:00.
+    data.xdate = data.xdate.slice(1).concat("24:00");
+    const hours = parseDailyHistory(data);
+
+    expect(hours[0].hour).toBe(1);
+    // "24:00" is not a valid hour and is dropped rather than wrapping to 0.
+    expect(hours.some(h => h.hour === 0)).toBe(false);
+    expect(hours).toHaveLength(23);
+  });
+
+  it("drops malformed and out-of-range hour labels", () => {
+    const data = dayResponse([{ hour: 5, ml: 20, times: 2 }]);
+    data.xdate[0] = "nonsense";
+    data.xdate[1] = "99:00";
+    const hours = parseDailyHistory(data);
+
+    expect(hours).toHaveLength(22);
+    expect(hours.find(h => h.hour === 5)?.totalMl).toBe(20);
+  });
+
+  it("de-duplicates a repeated hour", () => {
+    const data = dayResponse([{ hour: 7, ml: 30, times: 2 }]);
+    data.xdate[8] = "07:00";
+    const hours = parseDailyHistory(data);
+
+    expect(hours.filter(h => h.hour === 7)).toHaveLength(1);
+  });
+
+  it("coerces numeric strings", () => {
+    const data = dayResponse([{ hour: 2, ml: 15, times: 1 }]);
+    (data.waterIntake as any)[2] = "15.5";
+    (data.drinkTimes as any)[2] = "1";
+    const hours = parseDailyHistory(data);
+
+    expect(hours[2].totalMl).toBeCloseTo(15.5, 5);
+    expect(hours[2].drinkingCount).toBe(1);
+  });
+
+  it("returns 24 zeroed hours for a travel day", () => {
+    const hours = parseDailyHistory(dayResponse([]));
+
+    expect(hours).toHaveLength(24);
+    expect(hours.every(h => h.totalMl === 0 && h.drinkingCount === 0)).toBe(true);
+  });
+
+  it("returns empty for null or shapeless responses", () => {
+    expect(parseDailyHistory(null)).toEqual([]);
+    expect(parseDailyHistory({} as any)).toEqual([]);
   });
 });
 
