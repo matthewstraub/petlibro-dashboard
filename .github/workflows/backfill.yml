@@ -30,6 +30,10 @@ on:
         type: boolean
         required: true
         default: false
+      hourly_days:
+        description: "Also repair N days of hourly buckets (0 = skip, max 60)"
+        required: false
+        default: "0"
 
 jobs:
   backfill:
@@ -64,6 +68,7 @@ jobs:
           IN_MONTHS: ${{ inputs.months }}
           IN_DRY_RUN: ${{ inputs.dry_run }}
           IN_OVERWRITE: ${{ inputs.overwrite }}
+          IN_HOURLY_DAYS: ${{ inputs.hourly_days }}
         run: |
           # Scheduled defaults: walk two months, actually write, never clobber.
           # Two months comfortably covers any plausible sync outage while
@@ -71,10 +76,14 @@ jobs:
           MONTHS="${IN_MONTHS:-2}"
           DRY_RUN="${IN_DRY_RUN:-false}"
           OVERWRITE="${IN_OVERWRITE:-false}"
+          # Off by default, including on the schedule: the sync now keeps
+          # hourly buckets current, so this is only for a one-off repair.
+          HOURLY_DAYS="${IN_HOURLY_DAYS:-0}"
 
           QS="months=$MONTHS"
           [ "$DRY_RUN" = "true" ]   && QS="$QS&dryRun=true"
           [ "$OVERWRITE" = "true" ] && QS="$QS&overwrite=true"
+          [ "$HOURLY_DAYS" != "0" ] && QS="$QS&hourlyDays=$HOURLY_DAYS"
 
           echo "Trigger: ${{ github.event_name }}"
           echo "Requesting /api/backfill?$QS"
@@ -93,7 +102,7 @@ jobs:
           {
             echo "### Backfill result"
             echo ""
-            echo "Trigger \`${{ github.event_name }}\` · \`months=$MONTHS\` · \`dryRun=$DRY_RUN\` · \`overwrite=$OVERWRITE\`"
+            echo "Trigger \`${{ github.event_name }}\` · \`months=$MONTHS\` · \`dryRun=$DRY_RUN\` · \`overwrite=$OVERWRITE\` · \`hourlyDays=$HOURLY_DAYS\`"
             echo ""
             echo "HTTP \`$STATUS\`"
             echo ""
