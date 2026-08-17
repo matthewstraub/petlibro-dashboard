@@ -1,15 +1,19 @@
 name: Petlibro Backfill
 
-# Manual trigger only. Recovers historical daily totals that the live sync never
-# captured — it only ever writes today and yesterday, so outages longer than two
-# days leave permanent holes, and anything predating the first sync was missed
-# entirely.
+# Recovers historical daily totals the live sync never captured. The sync only
+# ever writes today and yesterday, so any outage longer than two days leaves a
+# hole — and Petlibro discards history older than ~170 days, after which that
+# hole is permanent. The weekly run heals gaps well inside that window.
 #
 # Runs here rather than from a laptop so CRON_SECRET stays in GitHub secrets and
 # never has to be copied around.
 #
-# Note: Petlibro retains only ~170 days. See docs/petlibro-history-api.md.
+# See docs/petlibro-history-api.md for the retention findings.
 on:
+  schedule:
+    # Weekly, Sunday 06:17 UTC. Off the hour to dodge GitHub's queue spike.
+    # A gap is healed within a week, against a window that is ~24 weeks wide.
+    - cron: "17 6 * * 0"
   workflow_dispatch:
     inputs:
       months:
@@ -53,12 +57,28 @@ jobs:
 
       - name: Run backfill
         id: backfill
+        env:
+          # Empty on a schedule run: the inputs context only exists for
+          # workflow_dispatch. Defaulting happens in shell below, where it can
+          # be unit-tested, rather than in a GitHub expression, which cannot.
+          IN_MONTHS: ${{ inputs.months }}
+          IN_DRY_RUN: ${{ inputs.dry_run }}
+          IN_OVERWRITE: ${{ inputs.overwrite }}
         run: |
-          QS="months=${{ inputs.months }}"
-          [ "${{ inputs.dry_run }}" = "true" ]   && QS="$QS&dryRun=true"
-          [ "${{ inputs.overwrite }}" = "true" ] && QS="$QS&overwrite=true"
+          # Scheduled defaults: walk two months, actually write, never clobber.
+          # Two months comfortably covers any plausible sync outage while
+          # keeping the run to about three API calls.
+          MONTHS="${IN_MONTHS:-2}"
+          DRY_RUN="${IN_DRY_RUN:-false}"
+          OVERWRITE="${IN_OVERWRITE:-false}"
 
+          QS="months=$MONTHS"
+          [ "$DRY_RUN" = "true" ]   && QS="$QS&dryRun=true"
+          [ "$OVERWRITE" = "true" ] && QS="$QS&overwrite=true"
+
+          echo "Trigger: ${{ github.event_name }}"
           echo "Requesting /api/backfill?$QS"
+
           RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 300 \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
             "${{ secrets.RENDER_APP_URL }}/api/backfill?$QS")
@@ -73,7 +93,7 @@ jobs:
           {
             echo "### Backfill result"
             echo ""
-            echo "\`months=${{ inputs.months }}\` · \`dryRun=${{ inputs.dry_run }}\` · \`overwrite=${{ inputs.overwrite }}\`"
+            echo "Trigger \`${{ github.event_name }}\` · \`months=$MONTHS\` · \`dryRun=$DRY_RUN\` · \`overwrite=$OVERWRITE\`"
             echo ""
             echo "HTTP \`$STATUS\`"
             echo ""

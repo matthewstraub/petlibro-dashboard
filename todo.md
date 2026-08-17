@@ -99,4 +99,4 @@
 - [x] Analysis: report zero days separately in coverage ("136 of 170 with intake · 28 with none · 5 missing") and in the tile
 - [x] Analysis: tooltip says "No drinking recorded" on a zero day instead of "0.00 fl oz"
 - [ ] Backfill follow-up: use dimension=day (24 hourly buckets) to repair hourly_water_log, which currently stores cumulative day totals under the sync hour
-- [ ] Sync robustness: the cron only writes today/yesterday, so outages >2 days become permanent once Petlibro's ~170-day window rolls past them — consider a periodic self-healing backfill
+- [x] Sync robustness: weekly scheduled backfill (months=2, writes, fill-only) so outages self-heal well inside Petlibro's ~170-day window
