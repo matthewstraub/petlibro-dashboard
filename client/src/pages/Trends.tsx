@@ -19,10 +19,11 @@ import { toast } from "sonner";
 import { useUnit } from "@/contexts/UnitContext";
 import { DatePicker } from "@/components/ui/date-picker";
 import { format } from "date-fns";
+import { formatDateKey, toDateKey } from "@shared/dates";
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+/** Axis label for a daily row, whose `date` arrives as a superjson-revived Date. */
+function formatChartDate(value: string | Date) {
+  return formatDateKey(toDateKey(value), { month: "short", day: "numeric" });
 }
 
 function formatHour12(hour: number | string) {
@@ -380,13 +381,13 @@ export default function Trends() {
   const [exporting, setExporting] = useState(false);
 
   const weeklyData = (weekly.data || []).map((d: any) => ({
-    date: formatDate(d.date),
+    date: formatChartDate(d.date),
     totalMl: convert(d.totalMl),
     drinkingCount: d.drinkingCount,
   }));
 
   const monthlyData = (monthly.data || []).map((d: any) => ({
-    date: formatDate(d.date),
+    date: formatChartDate(d.date),
     totalMl: convert(d.totalMl),
     drinkingCount: d.drinkingCount,
   }));
@@ -434,7 +435,7 @@ export default function Trends() {
       ];
 
       const csvData = dailyLogs.map((d: any) => ({
-        date: typeof d.date === "string" ? d.date.split("T")[0] : new Date(d.date).toISOString().split("T")[0],
+        date: toDateKey(d.date),
         totalMl: d.totalMl,
         drinkingCount: d.drinkingCount,
         totalDrinkingTime: d.totalDrinkingTime,
@@ -464,7 +465,7 @@ export default function Trends() {
       const exportData = {
         exportedAt: new Date().toISOString(),
         dailyLogs: result.data.dailyLogs.map((d: any) => ({
-          date: typeof d.date === "string" ? d.date.split("T")[0] : new Date(d.date).toISOString().split("T")[0],
+          date: toDateKey(d.date),
           totalMl: d.totalMl,
           drinkingCount: d.drinkingCount,
           totalDrinkingTime: d.totalDrinkingTime,
