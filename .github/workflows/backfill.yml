@@ -1,0 +1,90 @@
+name: Petlibro Backfill
+
+# Manual trigger only. Recovers historical daily totals that the live sync never
+# captured — it only ever writes today and yesterday, so outages longer than two
+# days leave permanent holes, and anything predating the first sync was missed
+# entirely.
+#
+# Runs here rather than from a laptop so CRON_SECRET stays in GitHub secrets and
+# never has to be copied around.
+#
+# Note: Petlibro retains only ~170 days. See docs/petlibro-history-api.md.
+on:
+  workflow_dispatch:
+    inputs:
+      months:
+        description: "How many months back to walk (1-24)"
+        required: true
+        default: "6"
+      dry_run:
+        description: "Report what would be written, without writing"
+        type: boolean
+        required: true
+        default: true
+      overwrite:
+        description: "Replace existing rows (default fills only missing days)"
+        type: boolean
+        required: true
+        default: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wake Render instance
+        run: |
+          echo "Pinging health endpoint to wake the instance..."
+          curl -sf --max-time 60 "${{ secrets.RENDER_APP_URL }}/api/health" \
+            || echo "Wake ping sent (instance may be cold-starting)"
+
+      - name: Wait for cold start
+        run: sleep 45
+
+      - name: Verify instance is awake
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            "${{ secrets.RENDER_APP_URL }}/api/health")
+          if [ "$STATUS" = "200" ]; then
+            echo "Instance is awake."
+          else
+            echo "Health check returned $STATUS — proceeding anyway."
+          fi
+
+      - name: Run backfill
+        id: backfill
+        run: |
+          QS="months=${{ inputs.months }}"
+          [ "${{ inputs.dry_run }}" = "true" ]   && QS="$QS&dryRun=true"
+          [ "${{ inputs.overwrite }}" = "true" ] && QS="$QS&overwrite=true"
+
+          echo "Requesting /api/backfill?$QS"
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 300 \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.RENDER_APP_URL }}/api/backfill?$QS")
+
+          STATUS=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "HTTP $STATUS"
+          echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+          # Surface the result on the run's summary page, not just in the log.
+          {
+            echo "### Backfill result"
+            echo ""
+            echo "\`months=${{ inputs.months }}\` · \`dryRun=${{ inputs.dry_run }}\` · \`overwrite=${{ inputs.overwrite }}\`"
+            echo ""
+            echo "HTTP \`$STATUS\`"
+            echo ""
+            echo '```json'
+            echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [ "$STATUS" = "200" ]
+
+      - name: Reminder when this was only a dry run
+        if: success() && inputs.dry_run
+        run: |
+          echo "::notice::Dry run only — nothing was written. Re-run with dry_run unchecked to commit."
