@@ -223,6 +223,110 @@ describe("history router", () => {
     await expect(caller.history.dailySeries({ rangeDays: 30.5 })).rejects.toThrow();
   });
 
+  it("dailySeries accepts an explicit custom range", async () => {
+    const { ctx } = createAuthContext(985);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.history.dailySeries({
+      rangeDays: null,
+      range: { startDate: "2026-03-01", endDate: "2026-04-30" },
+    });
+    expect(result.startKey).toBe("2026-03-01");
+    expect(Array.isArray(result.rows)).toBe(true);
+  });
+
+  it("dailySeries lets an explicit range override rangeDays", async () => {
+    const { ctx } = createAuthContext(984);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.history.dailySeries({
+      rangeDays: 30,
+      range: { startDate: "2026-03-01", endDate: "2026-03-10" },
+    });
+    expect(result.startKey).toBe("2026-03-01");
+    expect(result.endKey).toBe("2026-03-10");
+  });
+
+  it("dailySeries clamps a near-future endDate to today", async () => {
+    // The realistic case: a client a timezone ahead of the server asks for a
+    // range ending on its "today", which is still tomorrow server-side.
+    const { ctx } = createAuthContext(983);
+    const caller = appRouter.createCaller(ctx);
+    const probe = await caller.history.dailySeries({ rangeDays: 1 });
+
+    const result = await caller.history.dailySeries({
+      rangeDays: null,
+      range: {
+        startDate: addDaysToKey(probe.todayKey, -10),
+        endDate: addDaysToKey(probe.todayKey, 3),
+      },
+    });
+    expect(result.endKey).toBe(probe.todayKey);
+  });
+
+  it("dailySeries rejects an absurdly far-future endDate as over-wide", async () => {
+    // The span cap is applied to the requested window, before clamping — a
+    // decades-long request is a caller error worth surfacing, not silently
+    // reinterpreting.
+    const { ctx } = createAuthContext(978);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.history.dailySeries({
+        rangeDays: null,
+        range: { startDate: "2026-03-01", endDate: "2099-01-01" },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("dailySeries rejects an inverted custom range", async () => {
+    const { ctx } = createAuthContext(982);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.history.dailySeries({
+        rangeDays: null,
+        range: { startDate: "2026-04-30", endDate: "2026-03-01" },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("dailySeries rejects a malformed or impossible date", async () => {
+    const { ctx } = createAuthContext(981);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.history.dailySeries({
+        rangeDays: null,
+        range: { startDate: "2026-3-1", endDate: "2026-04-30" },
+      })
+    ).rejects.toThrow();
+    // Regex-valid but not a real calendar day
+    await expect(
+      caller.history.dailySeries({
+        rangeDays: null,
+        range: { startDate: "2026-02-30", endDate: "2026-04-30" },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("dailySeries rejects a custom range wider than the cap", async () => {
+    const { ctx } = createAuthContext(980);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.history.dailySeries({
+        rangeDays: null,
+        range: { startDate: "2015-01-01", endDate: "2026-01-01" },
+      })
+    ).rejects.toThrow();
+  });
+
+  it("dailySeries accepts a single-day custom range", async () => {
+    const { ctx } = createAuthContext(979);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.history.dailySeries({
+      rangeDays: null,
+      range: { startDate: "2026-03-15", endDate: "2026-03-15" },
+    });
+    expect(result.startKey).toBe("2026-03-15");
+    expect(result.endKey).toBe("2026-03-15");
+  });
+
   it("rejects unauthenticated access to history.dailySeries", async () => {
     const { ctx } = createUnauthContext();
     const caller = appRouter.createCaller(ctx);
