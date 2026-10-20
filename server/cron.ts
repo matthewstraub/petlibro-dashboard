@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { getDb } from "./db";
 import { getOrCreateAPI } from "./petlibro-api";
-import { upsertDailyLog, updateLastSync, getCredentials, upsertDrinkingSessions, getSessionIntegrity, getDailyTotalsByDate, replaceHourlyLogsForDate } from "./db";
+import { upsertDailyLog, updateLastSync, getCredentials, upsertDrinkingSessions, getSessionIntegrity, getDailyTotalsByDate, replaceHourlyLogsForDate, createChartEventsTable } from "./db";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
 import { addDaysToKey } from "@shared/analytics";
 import { enumerateMonthKeys, monthKeyOf, parseDailyHistory, parseMonthlyHistory, selectDaysToWrite } from "./backfill";
+import { recordMaintenanceEvents } from "./maintenance";
 import { sql } from "drizzle-orm";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -84,6 +85,15 @@ export function registerCronRoutes(app: Express) {
           } catch (hourlyErr) {
             console.error(`[Cron] Hourly breakdown failed for user ${userId}:`, hourlyErr);
             // Non-fatal: daily totals are the primary record.
+          }
+
+          // Filter / cleaning resets become chart markers. Petlibro only exposes
+          // the latest of each, so recording it every run builds the history.
+          try {
+            const added = await recordMaintenanceEvents(cred.userId, api, cred.deviceSn, userTz);
+            if (added > 0) console.log(`[Cron] Recorded ${added} maintenance event(s) for user ${userId}`);
+          } catch (maintErr) {
+            console.error(`[Cron] Maintenance events failed for user ${userId}:`, maintErr);
           }
 
           // Also save yesterday if available
@@ -408,6 +418,11 @@ export function registerCronRoutes(app: Express) {
       } else {
         migrations.push("drinking_sessions table already exists (no-op)");
       }
+
+      // chart_events also self-creates on first use (ensureChartEventsTable),
+      // so this is belt-and-braces; the statement is idempotent either way.
+      await createChartEventsTable();
+      migrations.push("chart_events table ensured (CREATE TABLE IF NOT EXISTS)");
 
       res.json({ success: true, migrations, timestamp: new Date().toISOString() });
     } catch (error: any) {

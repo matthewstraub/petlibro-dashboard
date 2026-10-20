@@ -18,6 +18,10 @@ import {
   getDailyTotalsByDate,
   replaceHourlyLogsForDate,
   getEarliestLogDate,
+  listChartEvents,
+  createChartEvent,
+  updateChartEvent,
+  deleteChartEvent,
   getUserByUsername,
   createUser,
   updateLastSignedIn,
@@ -27,6 +31,9 @@ import { hashPassword, verifyPassword, createSessionToken } from "./auth";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
 import { addDaysToKey, daysBetweenKeys, isDateKey, MAX_WINDOW_DAYS } from "@shared/analytics";
 import { parseDailyHistory } from "./backfill";
+import { recordMaintenanceEvents } from "./maintenance";
+import { validateManualEvent, type EventType, type ManualEventInput } from "@shared/events";
+import { TRPCError } from "@trpc/server";
 
 /** A calendar day, validated for shape *and* for actually existing. */
 const DATE_KEY_SCHEMA = z
@@ -43,6 +50,40 @@ const DATE_KEY_SCHEMA = z
 
 /** Upper bound on a custom window; matches the rangeDays cap. */
 const MAX_RANGE_DAYS = 1826;
+
+/**
+ * A hand-entered event. Shape is checked by zod; the rules (manual types only,
+ * ranges only for travel, ordering, lengths) come from validateManualEvent in
+ * shared/events.ts, which the form uses too, so the two can't drift apart.
+ */
+const MANUAL_EVENT_SCHEMA = z
+  .object({
+    type: z.string(),
+    startDate: z.string(),
+    endDate: z.string().nullish(),
+    title: z.string(),
+    note: z.string().nullish(),
+  })
+  .superRefine((value, ctx) => {
+    const error = validateManualEvent(toManualInput(value));
+    if (error) ctx.addIssue({ code: "custom", message: error });
+  });
+
+function toManualInput(value: {
+  type: string;
+  startDate: string;
+  endDate?: string | null;
+  title: string;
+  note?: string | null;
+}): ManualEventInput {
+  return {
+    type: value.type as EventType,
+    startDate: value.startDate,
+    endDate: value.endDate ?? undefined,
+    title: value.title,
+    note: value.note ?? undefined,
+  };
+}
 
 export const appRouter = router({
   auth: router({
@@ -307,6 +348,12 @@ export const appRouter = router({
         console.error("[syncToday] Hourly breakdown failed:", hourlyErr);
       }
 
+      try {
+        await recordMaintenanceEvents(ctx.user.id, api, creds.deviceSn, userTz);
+      } catch (maintErr) {
+        console.error("[syncToday] Maintenance events failed:", maintErr);
+      }
+
       // Also sync individual drinking sessions
       try {
         const now = Date.now();
@@ -554,6 +601,40 @@ export const appRouter = router({
       const monthlyLogs = await getMonthlyAverages(ctx.user.id, 36);
       return { dailyLogs, hourlyLogs, monthlyLogs };
     }),
+  }),
+
+  // Markers on the Analysis chart: fountain maintenance plus hand-logged events.
+  events: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return await listChartEvents(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(MANUAL_EVENT_SCHEMA)
+      .mutation(async ({ ctx, input }) => {
+        const id = await createChartEvent(ctx.user.id, toManualInput(input));
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }).and(MANUAL_EVENT_SCHEMA))
+      .mutation(async ({ ctx, input }) => {
+        const updated = await updateChartEvent(ctx.user.id, input.id, toManualInput(input));
+        if (!updated) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "That event doesn't exist or can't be edited" });
+        }
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const deleted = await deleteChartEvent(ctx.user.id, input.id);
+        if (!deleted) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "That event doesn't exist or can't be deleted" });
+        }
+        return { success: true };
+      }),
   }),
 });
 

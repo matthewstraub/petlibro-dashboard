@@ -375,3 +375,62 @@ describe("PetlibroAPI class", () => {
     expect(events.length).toBe(0);
   });
 });
+
+describe("events router", () => {
+  const vet = { type: "vet", startDate: "2026-09-22", title: "Dental cleaning" };
+
+  it("lists events (empty without a database)", async () => {
+    const { ctx } = createAuthContext(970);
+    const caller = appRouter.createCaller(ctx);
+    expect(await caller.events.list()).toEqual([]);
+  });
+
+  it("rejects unauthenticated access", async () => {
+    const { ctx } = createUnauthContext();
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.events.list()).rejects.toThrow();
+    await expect(caller.events.create(vet)).rejects.toThrow();
+  });
+
+  it("accepts a valid event — it gets past validation to the database", async () => {
+    const { ctx } = createAuthContext(969);
+    const caller = appRouter.createCaller(ctx);
+    // No DATABASE_URL in tests: reaching this error proves validation passed.
+    await expect(caller.events.create(vet)).rejects.toThrow("Database not available");
+    await expect(
+      caller.events.create({ type: "travel", startDate: "2026-06-18", endDate: "2026-07-15", title: "Away" })
+    ).rejects.toThrow("Database not available");
+  });
+
+  it("refuses to create Petlibro maintenance events by hand", async () => {
+    const { ctx } = createAuthContext(968);
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.events.create({ ...vet, type: "filter" })).rejects.toThrow(/can't be created/);
+    await expect(caller.events.create({ ...vet, type: "cleaning" })).rejects.toThrow(/can't be created/);
+  });
+
+  it("enforces the shared validation rules", async () => {
+    const { ctx } = createAuthContext(967);
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.events.create({ ...vet, title: "  " })).rejects.toThrow(/title/);
+    await expect(caller.events.create({ ...vet, startDate: "2026-02-30" })).rejects.toThrow(/date/);
+    await expect(caller.events.create({ ...vet, endDate: "2026-09-23" })).rejects.toThrow(/Only a trip/);
+    await expect(
+      caller.events.create({ type: "travel", startDate: "2026-06-18", title: "Away" })
+    ).rejects.toThrow(/end date/);
+  });
+
+  it("rejects malformed ids on update and delete", async () => {
+    const { ctx } = createAuthContext(966);
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.events.delete({ id: 0 })).rejects.toThrow();
+    await expect(caller.events.delete({ id: 1.5 })).rejects.toThrow();
+    await expect(caller.events.update({ id: -1, ...vet })).rejects.toThrow();
+  });
+
+  it("validates the payload on update too", async () => {
+    const { ctx } = createAuthContext(965);
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.events.update({ id: 1, ...vet, type: "filter" })).rejects.toThrow(/can't be created/);
+  });
+});

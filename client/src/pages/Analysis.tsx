@@ -13,6 +13,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
+  ReferenceArea,
 } from "recharts";
 import {
   AlertTriangle,
@@ -20,17 +22,37 @@ import {
   ArrowUpRight,
   Activity,
   CalendarCheck,
+  CalendarPlus,
   CalendarRange,
   Droplets,
+  Eye,
+  EyeOff,
   Loader2,
   Minus,
   Trophy,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUnit } from "@/contexts/UnitContext";
 import { buildSeries, summarize, computeTrend, type SeriesPoint } from "@shared/analytics";
 import { formatDateKey } from "@shared/dates";
+import {
+  eventsInWindow,
+  eventsOnDay,
+  groupPointEvents,
+  rangeEventsInWindow,
+  type ChartEvent,
+  type EventType,
+} from "@shared/events";
 import { DateRangePicker, type DateRange } from "@/components/ui/date-range-picker";
+import { EVENT_CATEGORIES, EVENT_TYPE_ORDER } from "@/lib/event-categories";
+import { useChartEvents } from "@/hooks/useChartEvents";
+import { EventDialog } from "@/components/analysis/EventDialog";
+import {
+  CHIP_SPAN_PX,
+  EVENT_LANE_HEIGHT,
+  EventMarkerLabel,
+} from "@/components/analysis/EventMarkerLabel";
+import { EventsPanel } from "@/components/analysis/EventsPanel";
 
 type PresetId = "30d" | "90d" | "all" | "custom";
 
@@ -47,6 +69,27 @@ function toLocalDateKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+const VISIBILITY_KEY = "petlibro-analysis-event-visibility";
+
+/**
+ * Past this many days, maintenance-only days drop their chip and keep just the
+ * hairline. Filter and cleaning recur every couple of weeks, so on a long range
+ * they would otherwise fill the lane and bury the events that tell a story.
+ */
+const DENSE_RANGE_DAYS = 90;
+
+/** Left margin + Y-axis width + right margin, for estimating the plot's width. */
+const PLOT_INSET_PX = 80;
+
+/** Per-viewer preference, so it lives in localStorage rather than the database. */
+function loadVisibility(): { show: boolean; hidden: EventType[] } {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VISIBILITY_KEY) ?? "null");
+    if (parsed && typeof parsed.show === "boolean" && Array.isArray(parsed.hidden)) return parsed;
+  } catch {}
+  return { show: true, hidden: [] };
 }
 
 const SERIES_LABELS: Record<string, { label: string; partialLabel?: string }> = {
@@ -66,8 +109,10 @@ function formatConverted(value: number, unit: "ml" | "oz"): string {
   return unit === "oz" ? value.toFixed(2) : Math.round(value).toString();
 }
 
-function AnalysisTooltip({ active, payload, label, unit, unitLabel }: any) {
+function AnalysisTooltip({ active, payload, label, unit, unitLabel, eventsForDay }: any) {
   if (!active || !payload?.length) return null;
+
+  const dayEvents: ChartEvent[] = eventsForDay ? eventsForDay(label) : [];
 
   const isPartial = Boolean(payload[0]?.payload?.isPartial);
   const isZero = Boolean(payload[0]?.payload?.isZero) && !isPartial;
@@ -95,7 +140,7 @@ function AnalysisTooltip({ active, payload, label, unit, unitLabel }: any) {
     .filter(Boolean);
 
   return (
-    <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-xl min-w-[180px]">
+    <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-xl min-w-[180px] max-w-[280px]">
       <p className="text-xs text-muted-foreground">
         {formatDateKey(label, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
       </p>
@@ -114,6 +159,26 @@ function AnalysisTooltip({ active, payload, label, unit, unitLabel }: any) {
       )}
       {isPartial && (
         <p className="text-[11px] text-muted-foreground mt-1.5">Today is still in progress</p>
+      )}
+      {dayEvents.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-border/60 space-y-1.5">
+          {dayEvents.map(event => {
+            const cat = EVENT_CATEGORIES[event.type];
+            const Icon = cat.icon;
+            return (
+              <div key={event.id} className="flex items-start gap-2">
+                {/* The icon carries the category color; the text stays in text tokens. */}
+                <Icon className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: cat.color }} />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium leading-snug">{event.title}</p>
+                  {event.note && (
+                    <p className="text-[11px] text-muted-foreground leading-snug">{event.note}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -159,6 +224,24 @@ export default function Analysis() {
   const { convert, format: formatValue, label: unitLabel, unit, toggleUnit } = useUnit();
   const [presetId, setPresetId] = useState<PresetId>("30d");
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
+
+  const { events, addEvent, updateEvent, removeEvent } = useChartEvents();
+  const [showEvents, setShowEvents] = useState(() => loadVisibility().show);
+  const [hiddenTypes, setHiddenTypes] = useState<Set<EventType>>(
+    () => new Set(loadVisibility().hidden)
+  );
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<ChartEvent | null>(null);
+  const [defaultDateKey, setDefaultDateKey] = useState(() => toLocalDateKey(new Date()));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        VISIBILITY_KEY,
+        JSON.stringify({ show: showEvents, hidden: Array.from(hiddenTypes) })
+      );
+    } catch {}
+  }, [showEvents, hiddenTypes]);
 
   const isCustom = presetId === "custom";
   // A half-picked range (start chosen, end pending) isn't a window yet.
@@ -210,6 +293,116 @@ export default function Analysis() {
       })),
     [points, convert]
   );
+
+  // ---- Events ---------------------------------------------------------------
+  const windowStart = query.data?.startKey;
+  const windowEnd = query.data?.endKey;
+
+  // The master toggle hides every marker on the chart. The list below still
+  // honours only the category chips, because it is where events are managed.
+  const chartHidden = useMemo(
+    () => (showEvents ? hiddenTypes : new Set<EventType>(EVENT_TYPE_ORDER)),
+    [showEvents, hiddenTypes]
+  );
+
+  const dayGroups = useMemo(
+    () => (windowStart && windowEnd ? groupPointEvents(events, windowStart, windowEnd, chartHidden) : []),
+    [events, windowStart, windowEnd, chartHidden]
+  );
+  const bands = useMemo(
+    () => (windowStart && windowEnd ? rangeEventsInWindow(events, windowStart, windowEnd, chartHidden) : []),
+    [events, windowStart, windowEnd, chartHidden]
+  );
+  const windowEvents = useMemo(
+    () => (windowStart && windowEnd ? eventsInWindow(events, windowStart, windowEnd) : []),
+    [events, windowStart, windowEnd]
+  );
+  const listedEvents = windowEvents.filter(e => !hiddenTypes.has(e.type));
+  const countsByType = useMemo(() => {
+    const counts: Partial<Record<EventType, number>> = {};
+    for (const e of windowEvents) counts[e.type] = (counts[e.type] ?? 0) + 1;
+    return counts;
+  }, [windowEvents]);
+
+  // The chart's rendered width, so chip collisions can be judged in pixels.
+  // A callback ref rather than useRef + useEffect: the chart only mounts after
+  // the loading branches, and a callback ref re-attaches whenever it does.
+  const [chartWidth, setChartWidth] = useState(900);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const chartBoxRef = useCallback((node: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    if (!node) return;
+    const observer = new ResizeObserver(entries => setChartWidth(entries[0].contentRect.width));
+    observer.observe(node);
+    observerRef.current = observer;
+  }, []);
+
+  /**
+   * Which lane row each chip goes in, keyed "day:<date>" or "band:<id>". A day
+   * missing from the map gets no chip — just its hairline.
+   *
+   * Greedy two-row dodge: a chip takes the top row unless the previous top-row
+   * chip is closer than CHIP_SPAN_PX, then the second row, and if both are
+   * crowded, whichever row's last chip is further away.
+   */
+  const chipRows = useMemo(() => {
+    const rows = new Map<string, number>();
+    if (chartData.length === 0) return rows;
+
+    const dense = chartData.length > DENSE_RANGE_DAYS;
+    const indexOf = new Map(chartData.map((d, i) => [d.dateKey, i] as const));
+    const pxPerDay = Math.max(0.5, (chartWidth - PLOT_INSET_PX) / chartData.length);
+
+    const slots: Array<{ key: string; x: number }> = [];
+    for (const group of dayGroups) {
+      const maintenanceOnly = group.events.every(e => EVENT_CATEGORIES[e.type].recessive);
+      if (dense && maintenanceOnly) continue;
+      const i = indexOf.get(group.dateKey);
+      if (i !== undefined) slots.push({ key: `day:${group.dateKey}`, x: (i + 0.5) * pxPerDay });
+    }
+    for (const band of bands) {
+      const i = indexOf.get(band.x1);
+      if (i !== undefined) slots.push({ key: `band:${band.event.id}`, x: i * pxPerDay + 12 });
+    }
+    slots.sort((a, b) => a.x - b.x);
+
+    const lastX = [-Infinity, -Infinity];
+    for (const slot of slots) {
+      const row =
+        slot.x - lastX[0] >= CHIP_SPAN_PX
+          ? 0
+          : slot.x - lastX[1] >= CHIP_SPAN_PX
+            ? 1
+            : lastX[0] <= lastX[1]
+              ? 0
+              : 1;
+      rows.set(slot.key, row);
+      lastX[row] = slot.x;
+    }
+    return rows;
+  }, [chartData, chartWidth, dayGroups, bands]);
+
+  // The lane exists only while there are chips to put in it, so hiding events
+  // gives the space back to the plot.
+  const laneShown = chipRows.size > 0;
+
+  const openCreate = (dateKey?: string) => {
+    setEditing(null);
+    setDefaultDateKey(dateKey ?? query.data?.todayKey ?? toLocalDateKey(new Date()));
+    setDialogOpen(true);
+  };
+  const openEdit = (event: ChartEvent) => {
+    if (event.source !== "manual") return;
+    setEditing(event);
+    setDialogOpen(true);
+  };
+  const toggleType = (type: EventType) =>
+    setHiddenTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
 
   /**
    * With dot={false} a non-null point flanked by nulls draws nothing, because a
@@ -429,9 +622,73 @@ export default function Analysis() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[360px]">
+          {/* Events toolbar: master toggle, one chip per category present in
+              this range (doubling as the event legend), and add. */}
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                aria-pressed={showEvents}
+                onClick={() => setShowEvents(s => !s)}
+              >
+                {showEvents ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                {showEvents ? "Events shown" : "Events hidden"}
+              </Button>
+              {EVENT_TYPE_ORDER.filter(t => countsByType[t]).map(t => {
+                const cat = EVENT_CATEGORIES[t];
+                const Icon = cat.icon;
+                const on = showEvents && !hiddenTypes.has(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={on}
+                    disabled={!showEvents}
+                    onClick={() => toggleType(t)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border h-7 px-2.5 text-xs transition-colors",
+                      on
+                        ? "border-border bg-secondary/60 text-foreground"
+                        : "border-border/40 text-muted-foreground/60 line-through decoration-muted-foreground/40",
+                      !showEvents && "opacity-40 cursor-not-allowed no-underline"
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" style={{ color: on ? cat.color : undefined }} />
+                    {cat.label}
+                    <span className="text-muted-foreground tabular-nums no-underline">
+                      {countsByType[t]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => openCreate()}
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                Add event
+              </Button>
+            </div>
+          </div>
+
+          <div className="h-[400px]" ref={chartBoxRef}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+              <ComposedChart
+                data={chartData}
+                // The extra top margin is the event lane: chips sit above the plot
+                // so they never land on top of tall bars.
+                margin={{ top: laneShown ? EVENT_LANE_HEIGHT + 4 : 10, right: 10, left: 10, bottom: 20 }}
+                // Click any day to log an event on it, pre-filled.
+                onClick={(state: any) => {
+                  if (state?.activeLabel) openCreate(String(state.activeLabel));
+                }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
                 <XAxis
                   dataKey="dateKey"
@@ -461,17 +718,49 @@ export default function Analysis() {
                 />
                 <Tooltip
                   cursor={{ fill: "oklch(0.3 0.01 250 / 35%)" }}
-                  content={<AnalysisTooltip unit={unit} unitLabel={unitLabel} />}
+                  content={
+                    <AnalysisTooltip
+                      unit={unit}
+                      unitLabel={unitLabel}
+                      eventsForDay={(key: string) => eventsOnDay(events, key, chartHidden)}
+                    />
+                  }
                 />
+                {/* Below the plot now: the top is the event lane. */}
                 <Legend
-                  verticalAlign="top"
+                  verticalAlign="bottom"
                   align="right"
                   height={28}
-                  wrapperStyle={{ fontSize: 11, paddingBottom: 8 }}
+                  wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
                   formatter={(value: string) => (
                     <span style={{ color: "oklch(0.65 0.02 220)" }}>{value}</span>
                   )}
                 />
+
+                {/* Range events (travel) as faint bands. JSX order is z-order in
+                    Recharts 2.15 — isFront is declared but not consumed — so these
+                    sit first, behind the bars. Must be direct children of the
+                    chart: Recharts finds them by element type, so they cannot be
+                    wrapped in a component. */}
+                {bands.map(({ event, x1, x2 }) => (
+                  <ReferenceArea
+                    key={event.id}
+                    x1={x1}
+                    x2={x2}
+                    fill={EVENT_CATEGORIES[event.type].color}
+                    fillOpacity={0.1}
+                    stroke="none"
+                    ifOverflow="hidden"
+                    label={
+                      <EventMarkerLabel
+                        events={[event]}
+                        onSelect={openEdit}
+                        inset={12}
+                        row={chipRows.get(`band:${event.id}`) ?? 0}
+                      />
+                    }
+                  />
+                ))}
 
                 {/* fill stays on the Bar as well as the Cells: the tooltip reads
                     entry.color from the Bar itself. */}
@@ -523,6 +812,32 @@ export default function Analysis() {
                   activeDot={{ r: 3.5 }}
                   isAnimationActive={false}
                 />
+
+                {/* Point events last, so their lines and chips sit on top. A day's
+                    line takes the color of its most prominent event — a food
+                    change on a maintenance day reads as a food change. */}
+                {dayGroups.map(group => {
+                  const lead =
+                    group.events.find(e => !EVENT_CATEGORIES[e.type].recessive) ?? group.events[0];
+                  const cat = EVENT_CATEGORIES[lead.type];
+                  const row = chipRows.get(`day:${group.dateKey}`);
+                  return (
+                    <ReferenceLine
+                      key={group.dateKey}
+                      x={group.dateKey}
+                      stroke={cat.color}
+                      strokeOpacity={cat.recessive ? 0.45 : 0.85}
+                      strokeWidth={cat.recessive ? 1 : 1.5}
+                      strokeDasharray="3 3"
+                      ifOverflow="hidden"
+                      label={
+                        row === undefined ? undefined : (
+                          <EventMarkerLabel events={group.events} onSelect={openEdit} row={row} />
+                        )
+                      }
+                    />
+                  );
+                })}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -574,6 +889,22 @@ export default function Analysis() {
           }
         />
       </div>
+
+      <EventsPanel
+        events={listedEvents}
+        hiddenCount={windowEvents.length - listedEvents.length}
+        onAdd={() => openCreate()}
+        onEdit={openEdit}
+      />
+
+      <EventDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editing={editing}
+        defaultDateKey={defaultDateKey}
+        onSave={input => (editing ? updateEvent(editing.id, input) : addEvent(input))}
+        onDelete={editing ? () => removeEvent(editing.id) : undefined}
+      />
     </div>
   );
 }

@@ -102,3 +102,10 @@
 - [x] Add replaceHourlyLogsForDate (DELETE + bulk INSERT, 2 queries per day instead of 48) — no unique key exists to upsert against
 - [x] Optional /api/backfill?hourlyDays=N repair, capped at 60, so the Time-of-Day chart is correct immediately rather than in 30 days
 - [x] Sync robustness: weekly scheduled backfill (months=2, writes, fill-only) so outages self-heal well inside Petlibro's ~170-day window
+- [x] Analysis: event markers — filter/cleaning from the fountain, plus food, medication, vet, travel and notes logged by hand
+- [x] Events: chart_events table (self-creating via ensureChartEventsTable, also in /api/migrate), tRPC list/create/update/delete
+- [x] Events: maintenance recorded from realInfo on every sync (cron + syncToday), deduped by type+day — Petlibro exposes only the latest reset, so history accrues from deployment
+- [x] Events: shared validateManualEvent used by both the form and the server; Petlibro events are read-only in the SQL and the UI
+- [x] Events: markers in their own lane above the plot, one chip per day, maintenance reduced to hairlines on ranges over 90 days, travel as a shaded band
+- [x] Events: marker palette validated against the real chart surface (yellow / magenta / violet + neutral)
+- [ ] Events: probe /device/device/maintenanceRecord (keys FILTER_ELEMENT / MACHINE_CLEANING) — if it returns past resets, backfill maintenance markers to February

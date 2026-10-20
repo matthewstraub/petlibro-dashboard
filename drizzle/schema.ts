@@ -83,6 +83,33 @@ export const drinkingSessions = mysqlTable("drinking_sessions", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+/**
+ * Events plotted as markers over the Analysis chart.
+ *
+ * `source = "petlibro"` rows are fountain maintenance (filter replaced, machine
+ * cleaned) recorded by the sync from realInfo; `externalKey` dedupes them, so
+ * re-syncing the same reset never adds a second marker. `source = "manual"`
+ * rows are food changes, medication, vet visits, travel and notes; their
+ * `externalKey` is null (MySQL unique keys allow any number of NULLs).
+ *
+ * Created by ensureChartEventsTable() in server/db.ts, and by /api/migrate.
+ */
+export const chartEvents = mysqlTable("chart_events", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 32 }).notNull(),
+  source: varchar("source", { length: 16 }).notNull(),
+  startDate: date("startDate").notNull(),
+  endDate: date("endDate"),
+  title: varchar("title", { length: 200 }).notNull(),
+  note: text("note"),
+  externalKey: varchar("externalKey", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ChartEventRow = typeof chartEvents.$inferSelect;
+
 export type PetlibroCredentials = typeof petlibroCredentials.$inferSelect;
 export type InsertPetlibroCredentials = typeof petlibroCredentials.$inferInsert;
 export type DrinkingSession = typeof drinkingSessions.$inferSelect;

@@ -55,6 +55,12 @@ export interface DeviceRealInfo {
   machineCleaningFrequency: number;
   waterStopSwitch: boolean;
   powerType: number;
+  /** Epoch ms, device-local midnight of the most recent filter replacement. */
+  filterStartWorkingTime?: number;
+  filterNextReplacementTime?: number;
+  /** Epoch ms, device-local midnight of the most recent machine cleaning. */
+  machineCleaningTime?: number;
+  machineNextCleaningTime?: number;
 }
 
 export interface FountainStatus {
