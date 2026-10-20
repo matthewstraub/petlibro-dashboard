@@ -11,6 +11,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
 - **Weekly/Monthly/Yearly Trends** — Visualize consumption patterns over time
 - **Time-of-Day Analysis** — Discover when your cat drinks most frequently
 - **Long-Term Analysis** — Daily intake with 7-day and 30-day rolling averages, a plain-language trend verdict, and honest data-coverage reporting
+- **Event Markers** — Filter replacements and cleanings recorded from the fountain, plus food changes, medication, vet visits, trips and notes you log yourself, plotted over the Analysis chart
 - **Device Events Log** — Recent fountain events and errors
 - **Data Export** — Download historical data as CSV or JSON
 - **Automatic Sync** — Cron endpoint for scheduled data collection
@@ -102,6 +103,23 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
      amountMl FLOAT NOT NULL DEFAULT 0,
      durationSec INT NOT NULL DEFAULT 0,
      createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+   );
+
+   -- Optional: the app also creates this itself on first use.
+   CREATE TABLE IF NOT EXISTS chart_events (
+     id INT AUTO_INCREMENT PRIMARY KEY,
+     userId INT NOT NULL,
+     type VARCHAR(32) NOT NULL,
+     source VARCHAR(16) NOT NULL,
+     startDate DATE NOT NULL,
+     endDate DATE NULL,
+     title VARCHAR(200) NOT NULL,
+     note TEXT NULL,
+     externalKey VARCHAR(128) NULL,
+     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+     UNIQUE KEY uq_chart_event_external (userId, externalKey),
+     KEY idx_chart_event_user_date (userId, startDate)
    );
    ```
 
@@ -308,6 +326,24 @@ Coverage is always stated explicitly ("98 of 104 days recorded · 6 missing") so
 ### Implementation notes
 
 The math lives in [`shared/analytics.ts`](shared/analytics.ts) — a pure, dependency-free module covered by 44 unit tests. The `history.dailySeries` endpoint widens its fetch by 29 days behind the requested start, so the 30-day average is populated from the first visible day instead of ramping up across the chart.
+
+### Event markers
+
+The Analysis chart can show what was going on alongside the intake data, so a dip or a step change can be read against its likely cause.
+
+| Event | Source | Shown as |
+|---|---|---|
+| Filter replaced, Fountain cleaned | Recorded automatically from the fountain | Gray marker, or a faint line on ranges over 90 days |
+| Food change | You | Yellow marker |
+| Medication, Vet visit | You | Magenta marker |
+| Note | You | Violet marker |
+| Travel | You (a date range) | Shaded band |
+
+Add an event with **Add event**, or click any day on the chart to add one there. Click a marker you added to edit it. **Events shown** hides every marker; the category chips beside it hide one kind at a time.
+
+**Maintenance history starts from deployment.** Petlibro reports only the *most recent* filter replacement and cleaning, and no endpoint is known to return earlier ones — a reset is just a change in Petlibro's database, so the fountain never emits an event for it. The sync therefore checks those two dates on every run and records each new value it sees. Resets from before this feature shipped aren't recoverable, but every one from now on is captured within a few hours.
+
+Colors were checked for contrast and colorblind separation against the chart's actual background. Within a color family, the icon tells types apart.
 
 ---
 

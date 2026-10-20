@@ -2,6 +2,7 @@ import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { users, dailyWaterLog, hourlyWaterLog, petlibroCredentials, drinkingSessions } from "../drizzle/schema";
 import type { InsertUser, InsertDailyWaterLog, InsertHourlyWaterLog, InsertPetlibroCredentials } from "../drizzle/schema";
+import type { ChartEvent, EventSource, EventType, ManualEventInput } from "@shared/events";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -496,4 +497,171 @@ export async function getHourlyAverages(userId: number, days: number = 30) {
   `);
 
   return (result as any)[0] || [];
+}
+
+// ==================== Chart Events ====================
+
+const CHART_EVENTS_DDL = sql`
+  CREATE TABLE IF NOT EXISTS chart_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    userId INT NOT NULL,
+    type VARCHAR(32) NOT NULL,
+    source VARCHAR(16) NOT NULL,
+    startDate DATE NOT NULL,
+    endDate DATE NULL,
+    title VARCHAR(200) NOT NULL,
+    note TEXT NULL,
+    externalKey VARCHAR(128) NULL,
+    createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_chart_event_external (userId, externalKey),
+    KEY idx_chart_event_user_date (userId, startDate)
+  )
+`;
+
+let chartEventsReady: Promise<boolean> | null = null;
+
+/**
+ * Create chart_events if it doesn't exist, once per process.
+ *
+ * Applied lazily rather than relying on someone remembering /api/migrate: the
+ * DDL is idempotent, and memoising it means it costs one round trip per server
+ * start. /api/migrate runs the same statement so the migration is documented
+ * there too. A failure is not memoised, so the next request retries.
+ */
+export function ensureChartEventsTable(): Promise<boolean> {
+  if (!chartEventsReady) {
+    chartEventsReady = (async () => {
+      const db = await getDb();
+      if (!db) {
+        chartEventsReady = null;
+        return false;
+      }
+      try {
+        await db.execute(CHART_EVENTS_DDL);
+        return true;
+      } catch (e) {
+        console.warn("[DB] ensureChartEventsTable failed:", e);
+        chartEventsReady = null;
+        return false;
+      }
+    })();
+  }
+  return chartEventsReady;
+}
+
+/** The DDL, for /api/migrate. */
+export async function createChartEventsTable(): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.execute(CHART_EVENTS_DDL);
+}
+
+/**
+ * All of a user's events. A user accumulates a few dozen a year (maintenance
+ * every couple of weeks plus whatever they log), so the page fetches them all
+ * once and filters per range client-side; the cap is a safety net, not paging.
+ */
+export async function listChartEvents(userId: number): Promise<ChartEvent[]> {
+  const db = await getDb();
+  if (!db || !(await ensureChartEventsTable())) return [];
+
+  try {
+    const result = await db.execute(sql`
+      SELECT id, type, source,
+        DATE_FORMAT(startDate, '%Y-%m-%d') AS startDate,
+        DATE_FORMAT(endDate, '%Y-%m-%d') AS endDate,
+        title, note
+      FROM chart_events
+      WHERE userId = ${userId}
+      ORDER BY startDate ASC, id ASC
+      LIMIT 5000
+    `);
+    return ((result as any)[0] || []).map((row: any) => ({
+      id: String(row.id),
+      type: row.type as EventType,
+      source: row.source as EventSource,
+      startDate: row.startDate,
+      endDate: row.endDate ?? undefined,
+      title: row.title,
+      note: row.note ?? undefined,
+    }));
+  } catch (e) {
+    console.warn("[DB] listChartEvents failed:", e);
+    return [];
+  }
+}
+
+export async function createChartEvent(userId: number, input: ManualEventInput): Promise<string> {
+  const db = await getDb();
+  if (!db || !(await ensureChartEventsTable())) throw new Error("Database not available");
+
+  const result = await db.execute(sql`
+    INSERT INTO chart_events (userId, type, source, startDate, endDate, title, note)
+    VALUES (${userId}, ${input.type}, 'manual', ${input.startDate}, ${input.endDate ?? null},
+            ${input.title.trim()}, ${input.note?.trim() || null})
+  `);
+  return String((result as any)[0]?.insertId);
+}
+
+/**
+ * Update a hand-entered event. The `source = 'manual'` and `userId` conditions
+ * live in the SQL itself, so a Petlibro event or another user's row can't be
+ * edited even if a request names its id. Returns whether a row was changed.
+ */
+export async function updateChartEvent(
+  userId: number,
+  id: number,
+  input: ManualEventInput
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db || !(await ensureChartEventsTable())) throw new Error("Database not available");
+
+  const result = await db.execute(sql`
+    UPDATE chart_events
+    SET type = ${input.type}, startDate = ${input.startDate}, endDate = ${input.endDate ?? null},
+        title = ${input.title.trim()}, note = ${input.note?.trim() || null}
+    WHERE id = ${id} AND userId = ${userId} AND source = 'manual'
+  `);
+  return ((result as any)[0]?.affectedRows ?? 0) > 0;
+}
+
+/** Delete a hand-entered event; Petlibro events are read-only. */
+export async function deleteChartEvent(userId: number, id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db || !(await ensureChartEventsTable())) throw new Error("Database not available");
+
+  const result = await db.execute(sql`
+    DELETE FROM chart_events WHERE id = ${id} AND userId = ${userId} AND source = 'manual'
+  `);
+  return ((result as any)[0]?.affectedRows ?? 0) > 0;
+}
+
+/**
+ * Record fountain maintenance events, idempotently.
+ *
+ * INSERT IGNORE against the (userId, externalKey) unique key: the sync reports
+ * the same "last reset" every 4 hours until the next one, and only the first
+ * sighting of each should become a marker. Returns how many were new.
+ */
+export async function recordPetlibroEvents(
+  userId: number,
+  events: Array<{ type: EventType; startDate: string; title: string; note: string; externalKey: string }>
+): Promise<number> {
+  const db = await getDb();
+  if (!db || events.length === 0 || !(await ensureChartEventsTable())) return 0;
+
+  let added = 0;
+  for (const e of events) {
+    try {
+      const result = await db.execute(sql`
+        INSERT IGNORE INTO chart_events (userId, type, source, startDate, title, note, externalKey)
+        VALUES (${userId}, ${e.type}, 'petlibro', ${e.startDate}, ${e.title}, ${e.note}, ${e.externalKey})
+      `);
+      added += (result as any)[0]?.affectedRows ?? 0;
+    } catch (err) {
+      console.warn(`[DB] recordPetlibroEvents failed for ${e.externalKey}:`, err);
+    }
+  }
+  return added;
 }
