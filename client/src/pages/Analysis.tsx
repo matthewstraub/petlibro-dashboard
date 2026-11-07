@@ -150,7 +150,18 @@ function AnalysisTooltip({ active, payload, label, unit, unitLabel, eventsForDay
       ) : (
         rows.map((row: any) => (
           <div key={row.key} className="flex items-baseline justify-between gap-4 mt-1">
-            <span className="text-xs" style={{ color: row.color }}>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {/* The swatch carries the series color; the label stays in a text token. */}
+              <span
+                aria-hidden
+                className={row.key === "totalMl" ? "h-2 w-2 shrink-0" : "h-0 w-3 shrink-0"}
+                style={
+                  row.key === "totalMl"
+                    ? // The bar tint is pale by design; the edge keeps the swatch visible.
+                      { background: row.color, boxShadow: "inset 0 0 0 1px var(--series-daily-edge)" }
+                    : { borderTop: `2px ${row.key === "avg7" ? "dashed" : "solid"} ${row.color}` }
+                }
+              />
               {row.name}
             </span>
             <span className="text-sm font-semibold tabular-nums">{row.text}</span>
@@ -198,7 +209,7 @@ function StatTile({
   sub?: string;
 }) {
   return (
-    <Card className="glass-card">
+    <Card>
       <CardContent className="pt-4 pb-4 px-4">
         <div className="flex items-center gap-2 text-muted-foreground mb-1">
           <Icon className="h-3.5 w-3.5" />
@@ -476,7 +487,7 @@ export default function Analysis() {
       <div className="space-y-6">
         {header}
         {presetRow}
-        <Card className="glass-card">
+        <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 text-muted-foreground">
               <CalendarRange className="h-5 w-5" />
@@ -502,7 +513,7 @@ export default function Analysis() {
       <div className="space-y-6">
         {header}
         {presetRow}
-        <Card className="glass-card">
+        <Card>
           <CardContent className="pt-6 flex items-center justify-center h-[360px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </CardContent>
@@ -515,9 +526,9 @@ export default function Analysis() {
     return (
       <div className="space-y-6">
         {header}
-        <Card className="glass-card border-amber-500/30">
+        <Card className="border-warning/40">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-amber-400">
+            <div className="flex items-center gap-3 text-warning">
               <AlertTriangle className="h-5 w-5" />
               <div className="flex-1">
                 <p className="font-medium">Couldn't load history</p>
@@ -538,9 +549,9 @@ export default function Analysis() {
       <div className="space-y-6">
         {header}
         {presetRow}
-        <Card className="glass-card border-amber-500/30">
+        <Card className="border-warning/40">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-amber-400">
+            <div className="flex items-center gap-3 text-warning">
               <AlertTriangle className="h-5 w-5" />
               <div>
                 <p className="font-medium">No historical data yet</p>
@@ -568,9 +579,9 @@ export default function Analysis() {
     trend.direction === "up" ? ArrowUpRight : trend.direction === "down" ? ArrowDownRight : Minus;
   const trendColor =
     trend.direction === "up"
-      ? "text-emerald-400"
+      ? "text-success"
       : trend.direction === "down"
-        ? "text-red-400"
+        ? "text-destructive"
         : "text-muted-foreground";
 
   let headline: string;
@@ -598,7 +609,7 @@ export default function Analysis() {
     <div className="space-y-6">
       {header}
 
-      <Card className="glass-card glow-primary">
+      <Card className="border-t-[3px] border-t-primary">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
             <TrendIcon className={cn("h-6 w-6 mt-0.5 shrink-0", trendColor)} />
@@ -612,7 +623,7 @@ export default function Analysis() {
 
       {presetRow}
 
-      <Card className="glass-card">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Daily intake with rolling averages</CardTitle>
           <CardDescription>
@@ -689,10 +700,10 @@ export default function Analysis() {
                   if (state?.activeLabel) openCreate(String(state.activeLabel));
                 }}
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis
                   dataKey="dateKey"
-                  stroke="oklch(0.6 0.02 220)"
+                  stroke="var(--chart-axis)"
                   fontSize={11}
                   tickFormatter={(key: string) =>
                     formatDateKey(key, { month: "short", day: "numeric" })
@@ -703,21 +714,21 @@ export default function Analysis() {
                     value: "Day",
                     position: "insideBottom",
                     offset: -2,
-                    style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 },
+                    style: { fill: "var(--chart-axis)", fontSize: 11 },
                   }}
                 />
                 <YAxis
-                  stroke="oklch(0.6 0.02 220)"
+                  stroke="var(--chart-axis)"
                   fontSize={12}
                   label={{
                     value: unitLabel,
                     angle: -90,
                     position: "insideLeft",
-                    style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 },
+                    style: { fill: "var(--chart-axis)", fontSize: 11 },
                   }}
                 />
                 <Tooltip
-                  cursor={{ fill: "oklch(0.3 0.01 250 / 35%)" }}
+                  cursor={{ fill: "var(--chart-cursor)" }}
                   content={
                     <AnalysisTooltip
                       unit={unit}
@@ -733,7 +744,7 @@ export default function Analysis() {
                   height={28}
                   wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
                   formatter={(value: string) => (
-                    <span style={{ color: "oklch(0.65 0.02 220)" }}>{value}</span>
+                    <span style={{ color: "var(--muted-foreground)" }}>{value}</span>
                   )}
                 />
 
@@ -768,17 +779,16 @@ export default function Analysis() {
                   dataKey="totalMl"
                   name="Daily intake"
                   legendType="rect"
-                  fill="oklch(0.6 0.12 210)"
-                  fillOpacity={0.45}
+                  fill="var(--series-daily)"
                   radius={[2, 2, 0, 0]}
                   isAnimationActive={false}
                 >
                   {chartData.map(d => (
                     <Cell
                       key={d.dateKey}
-                      fill="oklch(0.6 0.12 210)"
-                      fillOpacity={d.isPartial ? 0.15 : 0.45}
-                      stroke={d.isPartial ? "oklch(0.6 0.12 210)" : undefined}
+                      fill="var(--series-daily)"
+                      fillOpacity={d.isPartial ? 0.45 : 1}
+                      stroke={d.isPartial ? "var(--series-daily-edge)" : undefined}
                       strokeDasharray={d.isPartial ? "3 2" : undefined}
                     />
                   ))}
@@ -792,12 +802,12 @@ export default function Analysis() {
                   dataKey="avg7"
                   name="7-day average"
                   legendType="plainline"
-                  stroke="oklch(0.75 0.1 175)"
-                  strokeWidth={1.75}
+                  stroke="var(--series-avg7)"
+                  strokeWidth={2}
                   strokeDasharray="4 3"
                   connectNulls={false}
                   dot={renderIsolatedDot}
-                  activeDot={{ r: 3 }}
+                  activeDot={{ r: 3, stroke: "var(--card)", strokeWidth: 2 }}
                   isAnimationActive={false}
                 />
                 <Line
@@ -805,11 +815,11 @@ export default function Analysis() {
                   dataKey="avg30"
                   name="30-day average"
                   legendType="plainline"
-                  stroke="oklch(0.65 0.15 195)"
+                  stroke="var(--series-avg30)"
                   strokeWidth={2.75}
                   connectNulls={false}
                   dot={renderIsolatedDot}
-                  activeDot={{ r: 3.5 }}
+                  activeDot={{ r: 3.5, stroke: "var(--card)", strokeWidth: 2 }}
                   isAnimationActive={false}
                 />
 

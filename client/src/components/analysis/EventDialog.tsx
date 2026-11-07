@@ -177,7 +177,7 @@ export function EventDialog({
           {editing && onDelete ? (
             <Button
               variant="ghost"
-              className="text-red-400 hover:text-red-300 gap-1.5"
+              className="text-destructive hover:text-destructive/80 gap-1.5"
               onClick={() => {
                 onDelete();
                 onOpenChange(false);

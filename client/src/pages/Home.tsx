@@ -62,7 +62,7 @@ export default function Home() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <Card key={i} className="glass-card animate-pulse">
+            <Card key={i} className="animate-pulse">
               <CardHeader className="pb-2">
                 <div className="h-4 w-24 bg-muted rounded" />
               </CardHeader>
@@ -86,9 +86,9 @@ export default function Home() {
             <p className="text-muted-foreground mt-1">Welcome back, {user?.name}</p>
           </div>
         </div>
-        <Card className="glass-card border-amber-500/30">
+        <Card className="border-warning/40">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-amber-400">
+            <div className="flex items-center gap-3 text-warning">
               <AlertTriangle className="h-5 w-5" />
               <div>
                 <p className="font-medium">Setup Required</p>
@@ -176,11 +176,11 @@ export default function Home() {
       {alerts.length > 0 && (
         <div className="space-y-2">
           {alerts.map((alert, i) => (
-            <Card key={i} className={`border ${alert.type === "danger" ? "border-red-500/40 bg-red-500/5" : "border-amber-500/40 bg-amber-500/5"}`}>
+            <Card key={i} className={`border ${alert.type === "danger" ? "border-destructive/40 bg-destructive/5" : "border-warning/40 bg-warning/5"}`}>
               <CardContent className="py-3 px-4">
                 <div className="flex items-center gap-3">
-                  <AlertTriangle className={`h-4 w-4 ${alert.type === "danger" ? "text-red-400" : "text-amber-400"}`} />
-                  <span className={`text-sm font-medium ${alert.type === "danger" ? "text-red-300" : "text-amber-300"}`}>
+                  <AlertTriangle className={`h-4 w-4 ${alert.type === "danger" ? "text-destructive" : "text-warning"}`} />
+                  <span className={`text-sm font-medium ${alert.type === "danger" ? "text-destructive" : "text-warning"}`}>
                     {alert.message}
                   </span>
                 </div>
@@ -192,7 +192,7 @@ export default function Home() {
 
       {/* Today's Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="glass-card glow-primary">
+        <Card className="border-t-[3px] border-t-primary">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Droplets className="h-4 w-4 text-primary" />
@@ -205,20 +205,20 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-1 mt-2 text-sm">
               {mlDiff > 0 ? (
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-success" />
               ) : mlDiff < 0 ? (
-                <ArrowDownRight className="h-3.5 w-3.5 text-red-400" />
+                <ArrowDownRight className="h-3.5 w-3.5 text-destructive" />
               ) : (
                 <Minus className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-              <span className={mlDiff > 0 ? "text-emerald-400" : mlDiff < 0 ? "text-red-400" : "text-muted-foreground"}>
+              <span className={mlDiff > 0 ? "text-success" : mlDiff < 0 ? "text-destructive" : "text-muted-foreground"}>
                 {mlPercent}% vs yesterday
               </span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="glass-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Hash className="h-4 w-4 text-chart-2" />
@@ -231,20 +231,20 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-1 mt-2 text-sm">
               {countDiff > 0 ? (
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
+                <ArrowUpRight className="h-3.5 w-3.5 text-success" />
               ) : countDiff < 0 ? (
-                <ArrowDownRight className="h-3.5 w-3.5 text-red-400" />
+                <ArrowDownRight className="h-3.5 w-3.5 text-destructive" />
               ) : (
                 <Minus className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-              <span className={countDiff > 0 ? "text-emerald-400" : countDiff < 0 ? "text-red-400" : "text-muted-foreground"}>
+              <span className={countDiff > 0 ? "text-success" : countDiff < 0 ? "text-destructive" : "text-muted-foreground"}>
                 {countDiff > 0 ? "+" : ""}{countDiff} vs yesterday
               </span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="glass-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="h-4 w-4 text-chart-4" />
@@ -264,7 +264,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Timer className="h-4 w-4 text-chart-3" />
@@ -285,7 +285,7 @@ export default function Home() {
       {/* Yesterday Comparison + Fountain Status */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Yesterday Comparison */}
-        <Card className="glass-card">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold">Today vs Yesterday</CardTitle>
           </CardHeader>
@@ -338,16 +338,16 @@ export default function Home() {
         </Card>
 
         {/* Fountain Status */}
-        <Card className="glass-card">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               Fountain Status
               {status?.online ? (
-                <Badge variant="outline" className="border-emerald-500/50 text-emerald-400 text-xs">
+                <Badge variant="outline" className="border-success/50 text-success text-xs">
                   <Wifi className="h-3 w-3 mr-1" /> Online
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-red-500/50 text-red-400 text-xs">
+                <Badge variant="outline" className="border-destructive/50 text-destructive text-xs">
                   <WifiOff className="h-3 w-3 mr-1" /> Offline
                 </Badge>
               )}
@@ -400,7 +400,7 @@ export default function Home() {
       </div>
 
       {/* Device Events Log */}
-      <Card className="glass-card">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
@@ -415,7 +415,7 @@ export default function Home() {
               ))}
             </div>
           ) : eventsQuery.data?.fetchFailed ? (
-            <div className="flex items-center gap-3 text-amber-400 py-4">
+            <div className="flex items-center gap-3 text-warning py-4">
               <AlertTriangle className="h-4 w-4" />
               <span className="text-sm">Failed to fetch events from the Petlibro API. Will retry automatically.</span>
             </div>

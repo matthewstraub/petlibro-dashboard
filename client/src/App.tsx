@@ -46,7 +46,7 @@ function AuthenticatedApp() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
+      <ThemeProvider>
         <UnitProvider>
           <TooltipProvider>
             <Toaster />

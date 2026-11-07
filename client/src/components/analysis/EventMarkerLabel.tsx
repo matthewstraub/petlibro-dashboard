@@ -3,8 +3,10 @@ import { EVENT_CATEGORIES, EVENT_TYPE_ORDER } from "@/lib/event-categories";
 import { formatDateKey } from "@shared/dates";
 import type { ChartEvent } from "@shared/events";
 
-/** The chart card's composited surface, so a chip reads as punched out of it. */
-const SURFACE = "#080c10";
+/** The chart card's surface, so a chip reads as punched out of it in either theme. */
+const SURFACE = "var(--card)";
+/** Count badge ink: a text token, since the badge is a label, not a mark. */
+const BADGE_INK = "var(--muted-foreground)";
 
 /** Height reserved above the plot for event chips: two rows. */
 export const EVENT_LANE_HEIGHT = 44;
@@ -104,7 +106,7 @@ export function EventMarkerLabel({
       />
       {events.length > 1 && (
         <g>
-          <circle cx={x + r} cy={cy - r + 1} r={5} fill={SURFACE} stroke="#c3c2b7" strokeWidth={1} />
+          <circle cx={x + r} cy={cy - r + 1} r={5} fill={SURFACE} stroke={BADGE_INK} strokeWidth={1} />
           <text
             x={x + r}
             y={cy - r + 1}
@@ -112,7 +114,7 @@ export function EventMarkerLabel({
             dominantBaseline="central"
             fontSize={7}
             fontWeight={600}
-            fill="#c3c2b7"
+            fill={BADGE_INK}
           >
             {events.length}
           </text>

@@ -28,7 +28,7 @@ export function EventsPanel({
   onEdit: (event: ChartEvent) => void;
 }) {
   return (
-    <Card className="glass-card">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div>
           <CardTitle className="text-base">Events in this range</CardTitle>

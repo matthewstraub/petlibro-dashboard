@@ -48,7 +48,7 @@ function CustomTooltipInner({ active, payload, label, unitLabel, unit }: any) {
       <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-xl">
         <p className="text-xs text-muted-foreground">{label}</p>
         {payload.map((entry: any, i: number) => (
-          <p key={i} className="text-sm font-semibold" style={{ color: entry.color }}>
+          <p key={i} className="text-sm font-semibold tabular-nums">
             {entry.name === "avgMl" || entry.name === "totalMl"
               ? `${unit === "oz" ? entry.value.toFixed(2) : Math.round(entry.value)} ${unitLabel}`
               : entry.value?.toFixed(1)}
@@ -171,15 +171,15 @@ function DailyDetailView() {
       </div>
 
       {isLoading ? (
-        <Card className="glass-card">
+        <Card>
           <CardContent className="pt-6 flex items-center justify-center h-[200px]">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </CardContent>
         </Card>
       ) : !summary ? (
-        <Card className="glass-card border-amber-500/30">
+        <Card className="border-warning/40">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-amber-400">
+            <div className="flex items-center gap-3 text-warning">
               <AlertTriangle className="h-5 w-5" />
               <div>
                 <p className="font-medium">No data for this day</p>
@@ -204,7 +204,7 @@ function DailyDetailView() {
             const hasTimeData = sessionTotalTime > 0;
             return (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="glass-card">
+                <Card>
                   <CardContent className="pt-4 pb-4 px-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
                       <Droplets className="h-3.5 w-3.5" />
@@ -216,7 +216,7 @@ function DailyDetailView() {
                     </p>
                   </CardContent>
                 </Card>
-                <Card className="glass-card">
+                <Card>
                   <CardContent className="pt-4 pb-4 px-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
                       <GlassWater className="h-3.5 w-3.5" />
@@ -228,7 +228,7 @@ function DailyDetailView() {
                     </p>
                   </CardContent>
                 </Card>
-                <Card className="glass-card">
+                <Card>
                   <CardContent className="pt-4 pb-4 px-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
                       <Clock className="h-3.5 w-3.5" />
@@ -249,7 +249,7 @@ function DailyDetailView() {
                     )}
                   </CardContent>
                 </Card>
-                <Card className="glass-card">
+                <Card>
                   <CardContent className="pt-4 pb-4 px-4">
                     <div className="flex items-center gap-2 text-muted-foreground mb-1">
                       <Clock className="h-3.5 w-3.5" />
@@ -275,7 +275,7 @@ function DailyDetailView() {
           })()}
 
           {/* Hourly breakdown chart */}
-          <Card className="glass-card">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">
                 Hourly Breakdown — {format(selectedDate, "MMMM d, yyyy")}
@@ -285,11 +285,11 @@ function DailyDetailView() {
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hourlyChartData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} tickFormatter={formatHour12} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
-                    <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[3, 3, 0, 0]} name="totalMl" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="hour" stroke="var(--chart-axis)" fontSize={11} interval={2} tickFormatter={formatHour12} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <Tooltip cursor={{ fill: "var(--chart-cursor)" }} content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
+                    <Bar dataKey="totalMl" fill="var(--chart-1)" radius={[3, 3, 0, 0]} name="totalMl" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -302,7 +302,7 @@ function DailyDetailView() {
           </Card>
 
           {/* Drinking Sessions Timeline */}
-          <Card className="glass-card">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">
                 Drinking Sessions — {format(selectedDate, "MMMM d, yyyy")}
@@ -349,7 +349,7 @@ function DailyDetailView() {
                             {timeStr}
                           </span>
                           <div className="relative z-10 mt-1">
-                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+                            <div className="w-2.5 h-2.5 rounded-full bg-success ring-2 ring-background" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm">
@@ -493,7 +493,7 @@ export default function Trends() {
           <h1 className="text-2xl font-bold tracking-tight">Trends</h1>
           <p className="text-muted-foreground mt-1">Historical water consumption analysis</p>
         </div>
-        <Card className="glass-card">
+        <Card>
           <CardContent className="pt-6 flex items-center justify-center h-[320px]">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </CardContent>
@@ -509,9 +509,9 @@ export default function Trends() {
           <h1 className="text-2xl font-bold tracking-tight">Trends</h1>
           <p className="text-muted-foreground mt-1">Historical water consumption analysis</p>
         </div>
-        <Card className="glass-card border-amber-500/30">
+        <Card className="border-warning/40">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-amber-400">
+            <div className="flex items-center gap-3 text-warning">
               <AlertTriangle className="h-5 w-5" />
               <div>
                 <p className="font-medium">No historical data yet</p>
@@ -581,7 +581,7 @@ export default function Trends() {
 
         {/* Weekly Chart */}
         <TabsContent value="weekly">
-          <Card className="glass-card">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">Past 7 Days — Daily Water Intake</CardTitle>
             </CardHeader>
@@ -589,11 +589,11 @@ export default function Trends() {
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="date" stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: "Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
-                    <Bar dataKey="totalMl" fill="oklch(0.65 0.15 195)" radius={[4, 4, 0, 0]} name="totalMl" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="date" stroke="var(--chart-axis)" fontSize={12} label={{ value: "Day", position: "insideBottom", offset: -2, style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <Tooltip cursor={{ fill: "var(--chart-cursor)" }} content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
+                    <Bar dataKey="totalMl" fill="var(--chart-1)" radius={[4, 4, 0, 0]} name="totalMl" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -603,7 +603,7 @@ export default function Trends() {
 
         {/* Monthly Chart */}
         <TabsContent value="monthly">
-          <Card className="glass-card">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">Past 2 Months — Daily Water Intake</CardTitle>
             </CardHeader>
@@ -613,18 +613,18 @@ export default function Trends() {
                   <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
                     <defs>
                       <linearGradient id="colorMl" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="oklch(0.65 0.15 195)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="oklch(0.65 0.15 195)" stopOpacity={0} />
+                        <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="date" stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: "Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="date" stroke="var(--chart-axis)" fontSize={12} label={{ value: "Day", position: "insideBottom", offset: -2, style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <Tooltip cursor={{ stroke: "var(--chart-axis)", strokeWidth: 1, strokeDasharray: "3 3" }} content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
                     <Area
                       type="monotone"
                       dataKey="totalMl"
-                      stroke="oklch(0.65 0.15 195)"
+                      stroke="var(--chart-1)"
                       fillOpacity={1}
                       fill="url(#colorMl)"
                       name="totalMl"
@@ -638,7 +638,7 @@ export default function Trends() {
 
         {/* Yearly Chart */}
         <TabsContent value="yearly">
-          <Card className="glass-card">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">Past 12 Months — Average Daily Intake per Month</CardTitle>
             </CardHeader>
@@ -646,11 +646,11 @@ export default function Trends() {
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={yearlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="month" stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: "Month", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
-                    <Bar dataKey="avgMl" fill="oklch(0.6 0.12 210)" radius={[4, 4, 0, 0]} name="avgMl" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="month" stroke="var(--chart-axis)" fontSize={12} label={{ value: "Month", position: "insideBottom", offset: -2, style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <Tooltip cursor={{ fill: "var(--chart-cursor)" }} content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
+                    <Bar dataKey="avgMl" fill="var(--chart-1)" radius={[4, 4, 0, 0]} name="avgMl" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -660,7 +660,7 @@ export default function Trends() {
 
         {/* Hourly / Time of Day */}
         <TabsContent value="hourly">
-          <Card className="glass-card">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base">Average Drinking Activity by Hour (Past 30 Days)</CardTitle>
             </CardHeader>
@@ -668,11 +668,11 @@ export default function Trends() {
               <div className="h-[320px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hourlyData} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.3 0.01 250)" />
-                    <XAxis dataKey="hour" stroke="oklch(0.6 0.02 220)" fontSize={11} interval={2} tickFormatter={formatHour12} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <YAxis stroke="oklch(0.6 0.02 220)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "oklch(0.6 0.02 220)", fontSize: 11 } }} />
-                    <Tooltip content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
-                    <Bar dataKey="avgMl" fill="oklch(0.75 0.1 175)" radius={[3, 3, 0, 0]} name="avgMl" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="hour" stroke="var(--chart-axis)" fontSize={11} interval={2} tickFormatter={formatHour12} label={{ value: "Hour of Day", position: "insideBottom", offset: -2, style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <YAxis stroke="var(--chart-axis)" fontSize={12} label={{ value: unitLabel, angle: -90, position: "insideLeft", style: { fill: "var(--chart-axis)", fontSize: 11 } }} />
+                    <Tooltip cursor={{ fill: "var(--chart-cursor)" }} content={<CustomTooltipInner unitLabel={unitLabel} unit={unit} />} />
+                    <Bar dataKey="avgMl" fill="var(--chart-1)" radius={[3, 3, 0, 0]} name="avgMl" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
