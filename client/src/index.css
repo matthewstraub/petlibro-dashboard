@@ -62,7 +62,7 @@
   --app-font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --radius: 0rem;
 
-  --background: oklch(0.975 0.004 85); /* warm paper, #f8f7f4 */
+  --background: oklch(0.975 0.004 85); /* warm paper, #f8f7f4; also the phone toolbar color (index.html, ThemeContext.tsx) */
   --foreground: oklch(0.178 0.003 68); /* ink, #121110 */
   --card: #ffffff;
   --card-foreground: oklch(0.178 0.003 68);
@@ -133,7 +133,7 @@
 .dark {
   color-scheme: dark;
 
-  --background: oklch(0.175 0.003 100); /* #11110f */
+  --background: oklch(0.175 0.003 100); /* #11110f; also the phone toolbar color */
   --foreground: oklch(0.94 0.004 91); /* #ecebe8 */
   --card: #1a1918;
   --card-foreground: oklch(0.94 0.004 91);

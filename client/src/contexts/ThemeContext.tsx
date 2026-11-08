@@ -20,6 +20,13 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const STORAGE_KEY = "theme";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
+/*
+ * Phone browser toolbar color for each theme: the page background
+ * (--background in index.css). The theme-color tags and inline script in
+ * client/index.html use the same values.
+ */
+const TOOLBAR_COLOR: Record<ResolvedTheme, string> = { light: "#f8f7f4", dark: "#11110f" };
+
 function readPreference(): ThemePreference {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -63,6 +70,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       window.clearTimeout(restore);
       freeze.remove();
     };
+  }, [theme]);
+
+  // The theme-color tags in index.html carry OS media queries. Give both the
+  // color of the theme in use, so the toolbar follows an in-app choice too.
+  useEffect(() => {
+    document
+      .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+      .forEach((meta) => meta.setAttribute("content", TOOLBAR_COLOR[theme]));
   }, [theme]);
 
   const setPreference = useCallback((next: ThemePreference) => {
