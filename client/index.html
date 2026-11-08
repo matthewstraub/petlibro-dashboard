@@ -26,6 +26,12 @@
           pref === "dark" ||
           (pref !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
         if (dark) document.documentElement.classList.add("dark");
+        // The theme-color tags above follow the OS. Point both at the theme in
+        // use, so a phone's browser toolbar matches a Light or Dark picked in
+        // the app too. Colors match ThemeContext.tsx and --background.
+        var toolbar = dark ? "#11110f" : "#f8f7f4";
+        var metas = document.querySelectorAll('meta[name="theme-color"]');
+        for (var i = 0; i < metas.length; i++) metas[i].setAttribute("content", toolbar);
       })();
     </script>
   </head>
