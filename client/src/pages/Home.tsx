@@ -24,6 +24,27 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { useUnit } from "@/contexts/UnitContext";
 
+/*
+ * Water level tiers. The alert banner and the level bar both read these, so the
+ * bar turns amber exactly when the banner warns and red when it says critical.
+ */
+const WATER_CRITICAL_PERCENT = 20;
+const WATER_LOW_PERCENT = 40;
+
+type WaterLevelTone = "ok" | "warning" | "danger";
+
+function waterLevelTone(percent: number): WaterLevelTone {
+  if (percent < WATER_CRITICAL_PERCENT) return "danger";
+  if (percent < WATER_LOW_PERCENT) return "warning";
+  return "ok";
+}
+
+const WATER_BAR_FILL: Record<WaterLevelTone, string> = {
+  ok: "bg-primary",
+  warning: "bg-warning",
+  danger: "bg-destructive",
+};
+
 export default function Home() {
   const { user } = useAuth();
   const { convert, format, label, unit, toggleUnit } = useUnit();
@@ -133,9 +154,10 @@ export default function Home() {
     } else if (status.remainingCleaningDays <= 3) {
       alerts.push({ type: "warning", message: `Machine cleaning approaching (${status.remainingCleaningDays} days remaining)` });
     }
-    if (status.weightPercent < 20) {
+    const waterTone = waterLevelTone(status.weightPercent);
+    if (waterTone === "danger") {
       alerts.push({ type: "danger", message: `Water level critically low (${status.weightPercent}%)` });
-    } else if (status.weightPercent < 40) {
+    } else if (waterTone === "warning") {
       alerts.push({ type: "warning", message: `Water level getting low (${status.weightPercent}%)` });
     }
   }
@@ -363,7 +385,7 @@ export default function Home() {
                 <div className="flex items-center gap-2">
                   <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary rounded-full transition-all"
+                      className={`h-full rounded-full transition-all ${WATER_BAR_FILL[status ? waterLevelTone(status.weightPercent) : "ok"]}`}
                       style={{ width: `${status?.weightPercent ?? 0}%` }}
                     />
                   </div>
