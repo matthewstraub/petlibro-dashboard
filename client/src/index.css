@@ -56,6 +56,8 @@
  * Text tokens clear WCAG AA (4.5:1) on both the card and the page plane.
  * Status colors (success, warning, destructive) always ship with an icon and a
  * label, never color alone.
+ *
+ * docs/branding.md has the full color table and the rules for adding colors.
  */
 :root {
   color-scheme: light;

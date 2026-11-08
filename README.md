@@ -18,7 +18,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
 - **Proactive Session Repair** — Automatic detection and re-sync of missing drinking sessions
 - **Token Auto-Refresh** — Seamless re-authentication on token expiry
 - **Light & Dark Mode** — Follows your device's setting by default and switches live; pin Light or Dark in Settings → Appearance or the account menu (remembered per browser)
-- **Petlibro-Inspired Look** — Petlibro's greens, ink and paper, square corners, and Geist as a free stand-in for their Söhne typeface
+- **Petlibro-Inspired Look** — Petlibro's greens, ink and paper, square corners, and Geist as a free stand-in for their Söhne typeface (palette and rules in [`docs/branding.md`](docs/branding.md))
 
 ## Tech Stack
 
