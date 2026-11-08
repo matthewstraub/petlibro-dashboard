@@ -17,6 +17,8 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
 - **Automatic Sync** — Cron endpoint for scheduled data collection
 - **Proactive Session Repair** — Automatic detection and re-sync of missing drinking sessions
 - **Token Auto-Refresh** — Seamless re-authentication on token expiry
+- **Light & Dark Mode** — Follows your device's setting by default and switches live; pin Light or Dark in Settings → Appearance or the account menu (remembered per browser)
+- **Petlibro-Inspired Look** — Petlibro's greens, ink and paper, square corners, and Geist as a free stand-in for their Söhne typeface
 
 ## Tech Stack
 
@@ -334,16 +336,16 @@ The Analysis chart can show what was going on alongside the intake data, so a di
 | Event | Source | Shown as |
 |---|---|---|
 | Filter replaced, Fountain cleaned | Recorded automatically from the fountain | Gray marker, or a faint line on ranges over 90 days |
-| Food change | You | Yellow marker |
+| Food change | You | Orange marker |
 | Medication, Vet visit | You | Magenta marker |
-| Note | You | Violet marker |
+| Note | You | Blue marker |
 | Travel | You (a date range) | Shaded band |
 
 Add an event with **Add event**, or click any day on the chart to add one there. Click a marker you added to edit it. **Events shown** hides every marker; the category chips beside it hide one kind at a time.
 
 **Maintenance history starts from deployment.** Petlibro reports only the *most recent* filter replacement and cleaning, and no endpoint is known to return earlier ones — a reset is just a change in Petlibro's database, so the fountain never emits an event for it. The sync therefore checks those two dates on every run and records each new value it sees. Resets from before this feature shipped aren't recoverable, but every one from now on is captured within a few hours.
 
-Colors were checked for contrast and colorblind separation against the chart's actual background. Within a color family, the icon tells types apart.
+Colors were checked for contrast and colorblind separation against the chart's actual background, separately for light and dark mode; they live as theme tokens (`--series-*`, `--event-*`) in [`client/src/index.css`](client/src/index.css). Within a color family, the icon tells types apart.
 
 ---
 

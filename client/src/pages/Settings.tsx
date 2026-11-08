@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Loader2, Key, Server, Wifi, Globe } from "lucide-react";
+import { CheckCircle, Loader2, Key, Server, Wifi, Globe, Palette } from "lucide-react";
+import { ThemeSegmented } from "@/components/ThemeToggle";
 
 const COMMON_TIMEZONES = [
   { value: "America/New_York", label: "Eastern Time (US)" },
@@ -49,7 +50,7 @@ function TimezoneCard({ currentTimezone, onSaved }: { currentTimezone: string; o
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
-    <Card className="glass-card">
+    <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Globe className="h-4 w-4 text-primary" />
@@ -63,7 +64,7 @@ function TimezoneCard({ currentTimezone, onSaved }: { currentTimezone: string; o
         <div className="space-y-2">
           <Label htmlFor="timezone">Timezone</Label>
           <Select value={timezone} onValueChange={setTimezone}>
-            <SelectTrigger className="bg-input/50">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -161,12 +162,12 @@ export default function Settings() {
 
       {/* Current Status */}
       {credentials.data && (
-        <Card className="glass-card border-emerald-500/20">
+        <Card className="border-success/30">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <CheckCircle className="h-5 w-5 text-emerald-400" />
+              <CheckCircle className="h-5 w-5 text-success" />
               <div className="flex-1">
-                <p className="font-medium text-emerald-300">Connected</p>
+                <p className="font-medium text-success">Connected</p>
                 <p className="text-sm text-muted-foreground mt-0.5">
                   Account: {credentials.data.email} ({credentials.data.region})
                   {credentials.data.deviceSn && (
@@ -187,7 +188,7 @@ export default function Settings() {
       )}
 
       {/* Credentials Form */}
-      <Card className="glass-card">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Key className="h-4 w-4 text-primary" />
@@ -206,7 +207,6 @@ export default function Settings() {
               placeholder="your@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-input/50"
             />
           </div>
           <div className="space-y-2">
@@ -217,13 +217,12 @@ export default function Settings() {
               placeholder="Your Petlibro password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-input/50"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="region">Region</Label>
             <Select value={region} onValueChange={setRegion}>
-              <SelectTrigger className="bg-input/50">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -272,7 +271,7 @@ export default function Settings() {
 
       {/* Device Selection */}
       {testResult?.success && testResult.devices.length > 0 && (
-        <Card className="glass-card">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Select Your Fountain</CardTitle>
             <CardDescription>
@@ -309,15 +308,31 @@ export default function Settings() {
 
       {/* Test Error */}
       {testResult && !testResult.success && (
-        <Card className="border-red-500/30 bg-red-500/5">
+        <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="pt-6">
-            <p className="text-sm text-red-400">{testResult.error}</p>
+            <p className="text-sm text-destructive">{testResult.error}</p>
           </CardContent>
         </Card>
       )}
 
+      {/* Appearance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Palette className="h-4 w-4 text-primary" />
+            Appearance
+          </CardTitle>
+          <CardDescription>
+            System follows your device's light or dark setting. Saved in this browser only.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeSegmented />
+        </CardContent>
+      </Card>
+
       {/* Info */}
-      <Card className="glass-card">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">About</CardTitle>
         </CardHeader>

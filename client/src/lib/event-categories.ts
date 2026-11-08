@@ -15,7 +15,11 @@ export interface EventCategory {
   label: string;
   /** Short noun used in counts and the add form. */
   noun: string;
-  /** Marker color. Text never wears it — labels stay in text tokens. */
+  /**
+   * Marker color, as a CSS variable so it follows the theme (index.css holds
+   * both modes' values and their validation). Text never wears it — labels stay
+   * in text tokens.
+   */
   color: string;
   icon: LucideIcon;
   source: EventSource;
@@ -24,32 +28,26 @@ export interface EventCategory {
 }
 
 /*
- * Palette, validated with the dataviz skill's validate_palette.js against the
- * real chart surface (#080c10, glass-card over the page plane), dark mode:
+ * Four color families, defined per theme in index.css (--event-*) and validated
+ * there, all-pairs, against each mode's card surface with the dataviz skill's
+ * validate_palette.js.
  *
- *   yellow #c98500 · magenta #d55181 · violet #9085e9
- *   all-pairs: CVD ΔE 13.2, normal-vision ΔE 19.3 — every check passes.
+ * The series are green (Petlibro's brand), so marker hues stay off the green
+ * axis: caramel for food, magenta for health, blue for notes. Yellow and gold
+ * were tried for food and rejected — under deuteranopia they collapse into the
+ * green lines.
  *
- * The existing series are all teal/cyan (bars #0092a8, 7-day #61c3aa, 30-day
- * #00aaab), so marker hues come from the opposite side of the wheel. Worst
- * marker↔series normal-vision ΔE is 16.6. One CVD pair (magenta vs the 30-day
- * line, 6.5) sits in the floor band, which is legal only with secondary
- * encoding — markers have it twice: they are vertical dashed lines against a
- * solid horizontal trend line, and every marker carries an icon.
- *
- * Seven types share four color families because past three hues the all-pairs
- * floors cannot be met; icons carry the type within a family (Vet vs
- * Medication, Filter vs Cleaning). Orange was the obvious first pick and was
- * rejected by the validator: orange↔magenta measured ΔE 11.6, below the floor
- * of 15 even for full color vision.
+ * Seven types share four families because past three hues the all-pairs floors
+ * cannot be met; icons carry the type within a family (Vet vs Medication,
+ * Filter vs Cleaning).
  *
  * Fountain maintenance is neutral on purpose: it recurs every couple of weeks,
  * so on a long range it is context, not story.
  */
-const NEUTRAL = "#898781";
-const YELLOW = "#c98500";
-const MAGENTA = "#d55181";
-const VIOLET = "#9085e9";
+const NEUTRAL = "var(--event-neutral)";
+const FOOD = "var(--event-food)";
+const HEALTH = "var(--event-health)";
+const NOTE = "var(--event-note)";
 
 export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
   filter: {
@@ -74,7 +72,7 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
     type: "food",
     label: "Food change",
     noun: "food change",
-    color: YELLOW,
+    color: FOOD,
     icon: Utensils,
     source: "manual",
     recessive: false,
@@ -83,7 +81,7 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
     type: "medication",
     label: "Medication",
     noun: "medication",
-    color: MAGENTA,
+    color: HEALTH,
     icon: Pill,
     source: "manual",
     recessive: false,
@@ -92,7 +90,7 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
     type: "vet",
     label: "Vet visit",
     noun: "vet visit",
-    color: MAGENTA,
+    color: HEALTH,
     icon: Stethoscope,
     source: "manual",
     recessive: false,
@@ -110,7 +108,7 @@ export const EVENT_CATEGORIES: Record<EventType, EventCategory> = {
     type: "note",
     label: "Note",
     noun: "note",
-    color: VIOLET,
+    color: NOTE,
     icon: StickyNote,
     source: "manual",
     recessive: false,

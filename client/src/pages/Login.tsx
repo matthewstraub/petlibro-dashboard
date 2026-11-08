@@ -47,7 +47,7 @@ export default function Login() {
       <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur">
         <CardHeader className="text-center space-y-2">
           <div className="flex justify-center mb-2">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
               <Droplets className="w-7 h-7 text-primary" />
             </div>
           </div>
@@ -98,7 +98,7 @@ export default function Login() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-400 bg-red-400/10 px-3 py-2 rounded-md">
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
                 {error}
               </p>
             )}

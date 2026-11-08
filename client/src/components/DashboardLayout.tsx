@@ -4,8 +4,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { THEME_OPTIONS } from "@/components/ThemeToggle";
+import { useTheme, type ThemePreference } from "@/contexts/ThemeContext";
 import {
   Sidebar,
   SidebarContent,
@@ -75,6 +81,7 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { preference, setPreference } = useTheme();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -189,6 +196,21 @@ function DashboardLayoutContent({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Theme
+                </DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={preference}
+                  onValueChange={value => setPreference(value as ThemePreference)}
+                >
+                  {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+                    <DropdownMenuRadioItem key={value} value={value} className="cursor-pointer">
+                      <Icon className="mr-2 h-4 w-4" />
+                      {label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={logout}
                   className="cursor-pointer text-destructive focus:text-destructive"

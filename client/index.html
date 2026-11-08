@@ -9,7 +9,25 @@
     <title>Petlibro Water Fountain Dashboard</title>    
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Geist: a free stand-in for Petlibro's Söhne (commercial, Klim Type Foundry). -->
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap" rel="stylesheet" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f8f7f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#11110f" media="(prefers-color-scheme: dark)" />
+    <script>
+      // Apply the theme before first paint so dark-mode viewers never get a white
+      // flash. Same rule as ThemeContext.tsx: a saved choice wins, else the OS.
+      (function () {
+        var pref = "system";
+        try {
+          pref = localStorage.getItem("theme") || "system";
+        } catch (e) {}
+        var dark =
+          pref === "dark" ||
+          (pref !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
   </head>
 
   <body>
