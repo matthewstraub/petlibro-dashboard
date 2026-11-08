@@ -2,7 +2,7 @@
 
 The dashboard borrows PetLibro's look: their greens, ink and paper, and square corners. It comes in a light mode and a dark mode, and follows the viewer's device setting by default.
 
-Every color is a CSS variable (a *token*) defined in [`client/src/index.css`](../client/src/index.css). Components use tokens, never raw hex values or Tailwind's built-in palette. This page explains the system; `index.css` holds the exact values. If the two ever disagree, the CSS is right and this page needs updating.
+Every color is a CSS variable (a *token*) defined in [`client/src/index.css`](../client/src/index.css). Components use tokens rather than raw hex values or Tailwind's built-in palette; the few exceptions are listed under [Rules of thumb](#rules-of-thumb). This page explains the system; `index.css` holds the exact values. If the two ever disagree, the CSS is right and this page needs updating.
 
 ## Typeface
 
@@ -13,8 +13,11 @@ Every color is a CSS variable (a *token*) defined in [`client/src/index.css`](..
 
 ## Shape
 
-- **Corners are square.** `--radius` is `0rem`, and every rounded utility (`rounded-sm` through `rounded-xl`) is calculated from it, so this one value controls the whole app.
-- **`rounded-full` stays round.** It's used for badges and filter chips, avatars, icon circles, and progress bars (water level, hydration goal).
+- **Corners are square.** `--radius` is `0rem`, and every rounded utility (`rounded-sm` through `rounded-xl`) is calculated from it, so this one value sets the corners of cards, buttons, inputs, menus and dialogs.
+- **A few things stay rounded on purpose**, because they don't use those utilities:
+  - `rounded-full` pills and circles: badges and filter chips, avatars, icon circles, and progress bars (water level, hydration goal).
+  - Chart bars, whose tops are slightly rounded through Recharts' `radius` prop: 2px on the Analysis page, 3–4px on Trends.
+  - The small pointer arrow on tooltips (2px).
 - **Cards are flat:** a border and no shadow. Things that float over the page (dialogs, menus, popovers) keep a shadow so they read as being on top.
 
 ## Brand colors
@@ -38,8 +41,8 @@ Where the palette comes from (petlibro.com and PetLibro's Brandfetch page):
 | `--background` | `#f8f7f4` | `#11110f` | The page |
 | `--card` | `#ffffff` | `#1a1918` | Cards |
 | `--popover` | `#ffffff` | `#1e1e1c` | Menus and dropdowns |
-| `--sidebar` | `#ffffff` | `#151513` | The sidebar |
 | `--foreground` | `#121110` | `#ecebe8` | Body text |
+| `--card-foreground`, `--popover-foreground`, `--secondary-foreground`, `--accent-foreground` | `#121110` | `#ecebe8` | Text on those surfaces (same as `--foreground`) |
 | `--muted-foreground` | `#65635e` | `#a09e9a` | Secondary text, captions, chart axis labels |
 | `--muted`, `--secondary` | `#f1f0ed` | `#222220` | Quiet fills: tab bars, progress-bar tracks, loading placeholders |
 | `--accent` | `#edede9` | `#242421` | Hover and focus highlight in menus and buttons |
@@ -47,8 +50,22 @@ Where the palette comes from (petlibro.com and PetLibro's Brandfetch page):
 | `--input` | `#d9d7d4` | `#333331` | Form field borders, plus a faint field fill in dark mode |
 | `--primary`, `--ring` | `#315800` | `#0cac39` | Buttons, active nav, links, focus ring |
 | `--primary-foreground` | `#ffffff` | `#121110` | Text on primary buttons |
+| `--destructive-foreground` | `#ffffff` | `#121110` | Text on a destructive fill (the shadcn variants use white instead; see [Rules of thumb](#rules-of-thumb)) |
 
 Several tokens are written in OKLCH in the CSS; the hex values here are their sRGB equivalents.
+
+### Sidebar
+
+The sidebar has its own set of tokens, so it can be styled separately. Apart from its background, the values match ones above.
+
+| Token | Light | Dark | Used for |
+|---|---|---|---|
+| `--sidebar` | `#ffffff` | `#151513` | Sidebar background |
+| `--sidebar-foreground`, `--sidebar-accent-foreground` | `#121110` | `#ecebe8` | Sidebar text |
+| `--sidebar-accent` | `#f1f0ed` | `#222220` | Hovered and current nav items |
+| `--sidebar-border` | `#dfdedb` | `#2c2b29` | Sidebar borders |
+| `--sidebar-primary`, `--sidebar-ring` | `#315800` | `#0cac39` | The sidebar's primary color and focus ring |
+| `--sidebar-primary-foreground` | `#ffffff` | `#121110` | Text on the sidebar's primary color |
 
 ### Status colors
 
@@ -105,7 +122,9 @@ Several tokens are written in OKLCH in the CSS; the hex values here are their sR
 
 ## Rules of thumb
 
-1. **Use tokens, not raw colors.** In Tailwind, that means classes like `bg-primary`, `text-muted-foreground` or `border-warning/40`. In Recharts and SVG props, pass the variable: `stroke="var(--series-avg7)"`. Never use Tailwind's built-in palette (`text-emerald-500`) or a hex value in a component.
+1. **Use tokens, not raw colors.** In Tailwind, that means classes like `bg-primary`, `text-muted-foreground` or `border-warning/40`. In Recharts and SVG props, pass the variable: `stroke="var(--series-avg7)"`. Don't use Tailwind's built-in palette (`text-emerald-500`) or hex values in components. The only exceptions are two shadcn defaults in `components/ui`, kept as they are:
+   - White text on the destructive button and badge variants. It reads at 5.1:1 in light mode, and in dark mode those variants dim their fill to 60%, so white still reads at about 6:1. Neither variant is used in the app yet. Switching them to `text-destructive-foreground` would mean dropping that dimming too, or the dark text loses contrast.
+   - The 50% black overlay behind dialogs and the mobile menu, which works in both modes.
 2. **Text stays in text colors:** `foreground`, `muted-foreground`, or a status color alongside its icon. Chart colors are for bars, lines and markers; a colored swatch or icon next to a label shows which series it is.
 3. **Status colors mean status** (see above).
 4. **Each mode is designed, not inverted.** Every token has its own light and dark value, chosen and checked against that mode's background.
@@ -120,7 +139,7 @@ How the current colors were checked, so new ones can be held to the same bar:
 - **Chart lines, bars and markers:** at least 3:1 against the card.
 - **Colorblind separation:** the two average lines differ from each other, and the four marker colors from one another, by at least 8 ΔE (OKLab, ×100) under simulated deuteranopia, protanopia and tritanopia, and by at least 15 for normal vision.
 - **Deliberate exceptions:**
-  - Daily bars are a pale tint, below 3:1, so the average lines read on top of them. Every bar has a hover tooltip with its value.
+  - Daily bars are a pale tint (1.3:1 in light mode, 1.5:1 in dark) so the average lines read on top of them, and the dashed outline on today's bar is 2.4:1 in light mode. Every bar has a hover tooltip with its value.
   - In dark mode, the 7-day line is lighter than the usual range so it shows up over the bars (6.3:1 against them).
   - For red-green colorblind viewers, the food marker is close to the green lines (ΔE about 4). Markers are vertical lines with icons while the chart's lines run horizontally, so the two stay distinguishable.
 - The measured numbers sit in comments next to each group of tokens in `index.css`.
@@ -133,7 +152,7 @@ For a quick check in Chrome, DevTools → Rendering → **Emulate vision deficie
 - **Override:** pick System, Light or Dark in Settings → Appearance or the account menu. The choice is saved in that browser (`localStorage` key `theme`), not on the account.
 - **How it switches:** the `.dark` class on `<html>` swaps in the dark token values. Tailwind's `dark:` variant keys off the same class, but you rarely need it, since tokens already change with the mode.
 - **No white flash:** a small script in `client/index.html` applies the class before the page first paints. It follows the same rule as [`ThemeContext.tsx`](../client/src/contexts/ThemeContext.tsx), so change both together.
-- **Browser UI:** `color-scheme` makes scrollbars and native form controls match the mode. The `theme-color` tags tint the browser toolbar on phones (`#f8f7f4` light, `#11110f` dark); they follow the device setting, not the in-app choice.
+- **Browser UI:** `color-scheme` makes scrollbars and native form controls match the mode. The `theme-color` tags tint the browser toolbar on phones to the page color (`#f8f7f4` light, `#11110f` dark). The pre-paint script and `ThemeContext.tsx` point them at the theme in use, so the toolbar follows an in-app choice too. If `--background` changes, update the toolbar color in those two places.
 - **Clean switch:** CSS transitions are paused for a moment while the theme changes, so colors flip at once instead of fading.
 - Toast notifications follow the current theme.
 
