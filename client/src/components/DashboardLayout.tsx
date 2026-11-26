@@ -26,6 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
+import { LOCATION_NAME } from "@/lib/site";
 import { LayoutDashboard, LineChart, LogOut, PanelLeft, TrendingUp, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -148,6 +149,11 @@ function DashboardLayoutContent({
                   <span className="font-semibold tracking-tight truncate text-primary">
                     Petlibro
                   </span>
+                  {LOCATION_NAME ? (
+                    <span className="text-sm text-muted-foreground truncate">
+                      {LOCATION_NAME}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -245,6 +251,11 @@ function DashboardLayoutContent({
                 </div>
               </div>
             </div>
+            {LOCATION_NAME ? (
+              <span className="text-sm text-muted-foreground truncate px-2">
+                {LOCATION_NAME}
+              </span>
+            ) : null}
           </div>
         )}
         <main className="flex-1 p-4">{children}</main>

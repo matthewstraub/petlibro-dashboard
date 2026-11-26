@@ -15,6 +15,7 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
 - **Device Events Log** — Recent fountain events and errors
 - **Data Export** — Download historical data as CSV or JSON
 - **Automatic Sync** — Cron endpoint for scheduled data collection
+- **More Than One Location** — Run a second site from the same repo for a fountain somewhere else, labeled with its location ([`docs/second-site.md`](docs/second-site.md))
 - **Proactive Session Repair** — Automatic detection and re-sync of missing drinking sessions
 - **Token Auto-Refresh** — Seamless re-authentication on token expiry
 - **Light & Dark Mode** — Follows your device's setting by default and switches live; pin Light or Dark in Settings → Appearance or the account menu (remembered per browser)
@@ -104,7 +105,10 @@ A self-hosted dashboard for tracking your cat's hydration habits using the Petli
      date DATE NOT NULL,
      amountMl FLOAT NOT NULL DEFAULT 0,
      durationSec INT NOT NULL DEFAULT 0,
-     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+     createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     -- Required: the sync re-reads the last 24 hours on every run and relies
+     -- on this key (via INSERT IGNORE) to skip sessions it already stored.
+     UNIQUE KEY uq_session (userId, sessionId)
    );
 
    -- Optional: the app also creates this itself on first use.
@@ -159,6 +163,7 @@ The repo includes a GitHub Actions workflow (`.github/workflows/sync.yml`) that 
 2. Add these repository secrets:
    - `RENDER_APP_URL`: Your full Render app URL (e.g., `https://petlibro-dashboard.onrender.com`)
    - `CRON_SECRET`: The same `CRON_SECRET` value from your Render environment variables
+   - For a second site, also `SITE2_RENDER_APP_URL` and `SITE2_CRON_SECRET` (see [`docs/second-site.md`](docs/second-site.md)). The workflows sync each site in turn and skip one whose secrets aren't set.
 3. The workflow runs automatically every 4 hours. It:
    - Pings `/api/health` to wake the Render instance from sleep
    - Waits 45 seconds for cold start to complete
@@ -194,6 +199,10 @@ If you prefer not to use GitHub Actions:
 6. Select your fountain device from the dropdown
 7. Return to the Dashboard to see live data
 
+### 5. Another Fountain in Another Place (Optional)
+
+Each site tracks one fountain. To track a second one, run this repo as a second Render service with its own database. The original site carries on unchanged, and both redeploy from `main`. Set `VITE_LOCATION_NAME` on each to tell them apart. Full steps: [`docs/second-site.md`](docs/second-site.md).
+
 ---
 
 ## Local Development
@@ -226,6 +235,7 @@ The app will be available at `http://localhost:3000`.
 | `JWT_SECRET` | Yes | Secret for signing session tokens |
 | `CRON_SECRET` | Yes | Secret for authenticating cron requests |
 | `PORT` | No | Server port (defaults to 3000) |
+| `VITE_LOCATION_NAME` | No | Where this site's fountain is (e.g. `Office`), shown in the page title, sidebar, phone header and sign-in card. Read at build time. Unset, nothing is shown. |
 
 ---
 

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { Droplets, Loader2 } from "lucide-react";
+import { LOCATION_NAME } from "@/lib/site";
 
 export default function Login() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -54,6 +55,9 @@ export default function Login() {
           <CardTitle className="text-2xl font-bold tracking-tight">
             Petlibro Dashboard
           </CardTitle>
+          {LOCATION_NAME ? (
+            <p className="text-sm font-medium text-foreground">{LOCATION_NAME}</p>
+          ) : null}
           <CardDescription className="text-muted-foreground">
             {mode === "login"
               ? "Sign in to track your cat's hydration"

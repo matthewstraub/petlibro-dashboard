@@ -1,5 +1,9 @@
 name: Petlibro Sync
 
+# Syncs every site that runs this codebase, one per fountain. site1 is the
+# original deployment and keeps the original secret names; site2 reads its own
+# SITE2_-prefixed secrets (see docs/second-site.md). A site whose secrets
+# aren't set yet is skipped with a notice, not failed.
 on:
   schedule:
     # Every 4 hours, at :23 to avoid GitHub's top-of-hour queue
@@ -8,24 +12,60 @@ on:
 
 jobs:
   sync:
+    name: sync (${{ matrix.site }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      # One site failing must not cancel the other's sync.
+      fail-fast: false
+      # One site at a time. If both sites use the same Petlibro account, each
+      # login ends the other's session; run back to back, each sync logs in
+      # once and finishes instead of knocking the other out mid-run.
+      max-parallel: 1
+      matrix:
+        include:
+          - site: site1
+            url_secret: RENDER_APP_URL
+            cron_secret: CRON_SECRET
+            healthcheck_secret: HEALTHCHECK_URL
+          - site: site2
+            url_secret: SITE2_RENDER_APP_URL
+            cron_secret: SITE2_CRON_SECRET
+            healthcheck_secret: SITE2_HEALTHCHECK_URL
+    env:
+      APP_URL: ${{ secrets[matrix.url_secret] }}
+      CRON_SECRET: ${{ secrets[matrix.cron_secret] }}
+      HEALTHCHECK_URL: ${{ secrets[matrix.healthcheck_secret] }}
     steps:
+      - name: Check the site is set up
+        id: site
+        run: |
+          if [ -n "$APP_URL" ] && [ -n "$CRON_SECRET" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.site }}: add the ${{ matrix.url_secret }} and ${{ matrix.cron_secret }} repository secrets to sync it."
+          fi
+
       - name: Signal start
+        if: steps.site.outputs.ready == 'true' && env.HEALTHCHECK_URL != ''
         continue-on-error: true
-        run: curl -fsS -m 10 --retry 3 "${{ secrets.HEALTHCHECK_URL }}/start"
+        run: curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL/start"
 
       - name: Wake Render instance
+        if: steps.site.outputs.ready == 'true'
         run: |
           echo "Pinging health endpoint to wake Render instance..."
-          curl -sf --max-time 60 "${{ secrets.RENDER_APP_URL }}/api/health" || echo "Wake ping sent (instance may be cold-starting)"
+          curl -sf --max-time 60 "$APP_URL/api/health" || echo "Wake ping sent (instance may be cold-starting)"
 
       - name: Wait for cold start
+        if: steps.site.outputs.ready == 'true'
         run: sleep 45
 
       - name: Verify instance is awake
+        if: steps.site.outputs.ready == 'true'
         run: |
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${{ secrets.RENDER_APP_URL }}/api/health")
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$APP_URL/api/health")
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "Instance is awake and healthy."
           else
@@ -33,11 +73,12 @@ jobs:
           fi
 
       - name: Run sync with retry
+        if: steps.site.outputs.ready == 'true'
         run: |
           attempt_sync() {
             RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 120 \
-              -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-              "${{ secrets.RENDER_APP_URL }}/api/cron/sync")
+              -H "x-cron-secret: $CRON_SECRET" \
+              "$APP_URL/api/cron/sync")
             HTTP_STATUS=$(echo "$RESPONSE" | tail -1)
             BODY=$(echo "$RESPONSE" | sed '$d')
             echo "Status: $HTTP_STATUS"
@@ -66,10 +107,10 @@ jobs:
           exit 1
 
       - name: Signal success
-        if: success()
+        if: success() && steps.site.outputs.ready == 'true' && env.HEALTHCHECK_URL != ''
         continue-on-error: true
-        run: curl -fsS -m 10 --retry 3 "${{ secrets.HEALTHCHECK_URL }}"
+        run: curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL"
 
       - name: Signal failure
-        if: failure()
-        run: curl -fsS -m 10 --retry 3 "${{ secrets.HEALTHCHECK_URL }}/fail"
+        if: failure() && steps.site.outputs.ready == 'true' && env.HEALTHCHECK_URL != ''
+        run: curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL/fail"

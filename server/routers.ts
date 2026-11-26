@@ -225,7 +225,7 @@ export const appRouter = router({
         return { error: "No credentials or device configured" };
       }
 
-      const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+      const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
       const drinkData = await api.getDrinkWaterData(creds.deviceSn);
       const status = await api.getFountainStatus(creds.deviceSn);
 
@@ -243,7 +243,7 @@ export const appRouter = router({
         return { error: "No credentials or device configured" };
       }
 
-      const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+      const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
       return await api.getFountainStatus(creds.deviceSn);
     }),
 
@@ -253,7 +253,7 @@ export const appRouter = router({
         return { error: "No credentials configured", devices: [] };
       }
 
-      const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+      const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
       const devices = await api.listDevices();
       return { devices };
     }),
@@ -265,7 +265,7 @@ export const appRouter = router({
       }
 
       try {
-        const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+        const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
         const events = await api.getDeviceEvents(creds.deviceSn);
         return { events, error: null, fetchFailed: false };
       } catch (error: any) {
@@ -287,7 +287,7 @@ export const appRouter = router({
           return { error: "No credentials or device configured", records: [] };
         }
 
-        const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+        const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
         const now = Date.now();
         const startTime = input?.startTime || (now - 24 * 60 * 60 * 1000); // default: last 24h
         const endTime = input?.endTime || now;
@@ -304,7 +304,7 @@ export const appRouter = router({
         return { error: "No credentials or device configured" };
       }
 
-      const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+      const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
       const drinkData = await api.getDrinkWaterData(creds.deviceSn);
 
       if (!drinkData) {
@@ -430,7 +430,7 @@ export const appRouter = router({
           const creds = await getCredentials(ctx.user.id);
           if (!creds || !creds.deviceSn) return { success: false, count: 0 };
 
-          const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+          const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
           const userTz = creds.timezone || "America/New_York";
 
           // Compute correct UTC epoch boundaries for the user's local day
@@ -484,7 +484,7 @@ export const appRouter = router({
             const creds = await getCredentials(ctx.user.id);
             if (!creds || !creds.deviceSn) return sessions;
 
-            const api = getOrCreateAPI(creds.email, creds.password, creds.region);
+            const api = getOrCreateAPI(creds.email, creds.password, creds.region, creds.timezone);
             const userTz = creds.timezone || "America/New_York";
 
             // Compute correct UTC epoch boundaries for the user's local day
