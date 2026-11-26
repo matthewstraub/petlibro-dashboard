@@ -52,7 +52,13 @@ export function registerCronRoutes(app: Express) {
           const cred = await getCredentials(userId);
           if (!cred || !cred.deviceSn) continue;
 
-          const api = getOrCreateAPI(cred.email, cred.password, cred.region);
+          // Use the user's configured timezone for date/hour bucketing. The API
+          // gets it too: Petlibro buckets days by the timezone header on the
+          // request (docs/petlibro-history-api.md), so without it a fountain
+          // outside Eastern time has its days cut at Eastern midnight while
+          // they are stored under local dates.
+          const userTz = cred.timezone || "America/New_York";
+          const api = getOrCreateAPI(cred.email, cred.password, cred.region, userTz);
           const drinkData = await api.getDrinkWaterData(cred.deviceSn);
 
           if (!drinkData) {
@@ -60,8 +66,6 @@ export function registerCronRoutes(app: Express) {
             continue;
           }
 
-          // Use the user's configured timezone for date/hour bucketing
-          const userTz = cred.timezone || "America/New_York";
           const { date: today, hour: currentHour } = getLocalDateTime(userTz);
 
           await upsertDailyLog({

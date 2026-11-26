@@ -8,6 +8,11 @@ name: Petlibro Backfill
 # Runs here rather than from a laptop so CRON_SECRET stays in GitHub secrets and
 # never has to be copied around.
 #
+# Covers every site that runs this codebase, one per fountain, the same way as
+# sync.yml: site1 uses the original secret names, site2 its SITE2_ ones (see
+# docs/second-site.md). The weekly run does every site that is set up; a manual
+# run can pick one.
+#
 # See docs/petlibro-history-api.md for the retention findings.
 on:
   schedule:
@@ -16,6 +21,15 @@ on:
     - cron: "17 6 * * 0"
   workflow_dispatch:
     inputs:
+      site:
+        description: "Which site to backfill"
+        type: choice
+        options:
+          - all
+          - site1
+          - site2
+        required: true
+        default: all
       months:
         description: "How many months back to walk (1-24)"
         required: true
@@ -37,22 +51,62 @@ on:
 
 jobs:
   backfill:
+    name: backfill (${{ matrix.site }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      # One site failing must not cancel the other's backfill.
+      fail-fast: false
+      # One site at a time, for the same shared-login reason as sync.yml.
+      max-parallel: 1
+      matrix:
+        include:
+          - site: site1
+            url_secret: RENDER_APP_URL
+            cron_secret: CRON_SECRET
+          - site: site2
+            url_secret: SITE2_RENDER_APP_URL
+            cron_secret: SITE2_CRON_SECRET
+    env:
+      APP_URL: ${{ secrets[matrix.url_secret] }}
+      CRON_SECRET: ${{ secrets[matrix.cron_secret] }}
     steps:
+      - name: Check the site is selected and set up
+        id: site
+        env:
+          # Empty on a schedule run, which covers every site that is set up.
+          IN_SITE: ${{ inputs.site }}
+        run: |
+          if [ -n "$IN_SITE" ] && [ "$IN_SITE" != "all" ] && [ "$IN_SITE" != "${{ matrix.site }}" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Not selected for this run (site: $IN_SITE)."
+          elif [ -n "$APP_URL" ] && [ -n "$CRON_SECRET" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          elif [ "$IN_SITE" = "${{ matrix.site }}" ]; then
+            # Asked for by name, so a missing secret is an error, not a skip.
+            echo "::error::${{ matrix.site }} is not set up: add the ${{ matrix.url_secret }} and ${{ matrix.cron_secret }} repository secrets."
+            exit 1
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ${{ matrix.site }}: add the ${{ matrix.url_secret }} and ${{ matrix.cron_secret }} repository secrets to backfill it."
+          fi
+
       - name: Wake Render instance
+        if: steps.site.outputs.ready == 'true'
         run: |
           echo "Pinging health endpoint to wake the instance..."
-          curl -sf --max-time 60 "${{ secrets.RENDER_APP_URL }}/api/health" \
+          curl -sf --max-time 60 "$APP_URL/api/health" \
             || echo "Wake ping sent (instance may be cold-starting)"
 
       - name: Wait for cold start
+        if: steps.site.outputs.ready == 'true'
         run: sleep 45
 
       - name: Verify instance is awake
+        if: steps.site.outputs.ready == 'true'
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            "${{ secrets.RENDER_APP_URL }}/api/health")
+            "$APP_URL/api/health")
           if [ "$STATUS" = "200" ]; then
             echo "Instance is awake."
           else
@@ -61,6 +115,7 @@ jobs:
 
       - name: Run backfill
         id: backfill
+        if: steps.site.outputs.ready == 'true'
         env:
           # Empty on a schedule run: the inputs context only exists for
           # workflow_dispatch. Defaulting happens in shell below, where it can
@@ -85,12 +140,13 @@ jobs:
           [ "$OVERWRITE" = "true" ] && QS="$QS&overwrite=true"
           [ "$HOURLY_DAYS" != "0" ] && QS="$QS&hourlyDays=$HOURLY_DAYS"
 
+          echo "Site: ${{ matrix.site }}"
           echo "Trigger: ${{ github.event_name }}"
           echo "Requesting /api/backfill?$QS"
 
           RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 300 \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.RENDER_APP_URL }}/api/backfill?$QS")
+            -H "x-cron-secret: $CRON_SECRET" \
+            "$APP_URL/api/backfill?$QS")
 
           STATUS=$(echo "$RESPONSE" | tail -1)
           BODY=$(echo "$RESPONSE" | sed '$d')
@@ -100,7 +156,7 @@ jobs:
 
           # Surface the result on the run's summary page, not just in the log.
           {
-            echo "### Backfill result"
+            echo "### Backfill result: ${{ matrix.site }}"
             echo ""
             echo "Trigger \`${{ github.event_name }}\` · \`months=$MONTHS\` · \`dryRun=$DRY_RUN\` · \`overwrite=$OVERWRITE\` · \`hourlyDays=$HOURLY_DAYS\`"
             echo ""
@@ -114,6 +170,6 @@ jobs:
           [ "$STATUS" = "200" ]
 
       - name: Reminder when this was only a dry run
-        if: success() && inputs.dry_run
+        if: success() && inputs.dry_run && steps.site.outputs.ready == 'true'
         run: |
           echo "::notice::Dry run only — nothing was written. Re-run with dry_run unchecked to commit."
