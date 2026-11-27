@@ -21,9 +21,9 @@ The Dockstream 2 (model PLWF106) needs the full PETLIBRO app; its manual says
 PETLIBRO Lite doesn't support it. In the Home Assistant integration's code, it
 reads the same Petlibro endpoints and fields as the original Dockstream (water
 level, filter and cleaning days, today's and yesterday's intake), so the
-dashboard needs no model-specific changes. The history endpoint behind backfill
-and the Time-of-Day chart hasn't been tried on a Dockstream 2 yet; the dry-run
-backfill in step 5 shows whether it returns data.
+dashboard needs no model-specific changes. That has since been confirmed on a
+real Dockstream 2, including the history endpoint behind backfill and the
+Time-of-Day chart.
 
 **Decide which Petlibro account the new site signs in with.** Petlibro appears
 to allow one active login per account, so a new login signs the previous one
@@ -98,7 +98,7 @@ hours a month per site, so two sites fit with plenty to spare.
 ## 3. Set up the site
 
 1. Open the new site's URL and choose **Register**. This account is separate
-   from your site 1 login.
+   from your site 1 login. Sign-up closes once this first account exists.
 2. In **Settings**, enter the Petlibro email, password and region, then click
    **Test Connection** and **Save**.
 3. Select the Dockstream 2 from the device list.
@@ -142,3 +142,4 @@ After that, the weekly backfill covers both sites on its own.
 | The Dockstream 2 isn't in the device list                   | The account you entered doesn't have the fountain. If you shared it from another account, check in the PETLIBRO app that the share went through. |
 | Totals reset at the wrong hour, or show under the wrong day | The **Timezone** setting doesn't match where the fountain is.                                                                                    |
 | The label doesn't appear                                    | `VITE_LOCATION_NAME` was saved without a rebuild. On Render, run **Manual Deploy → Deploy latest commit**.                                       |
+| The Register link is missing                                | Sign-up closes once a site has its first account. To add another, set `ALLOW_SIGNUP` to `true` on the service, register, then remove it.         |

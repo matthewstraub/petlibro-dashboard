@@ -8,7 +8,11 @@ import { Droplets, Loader2 } from "lucide-react";
 import { LOCATION_NAME } from "@/lib/site";
 
 export default function Login() {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  // Register is only offered while sign-up is open: until the site's first
+  // account exists, or while ALLOW_SIGNUP is set on the server.
+  const signupOpen = trpc.auth.signupOpen.useQuery();
+  const [chosenMode, setMode] = useState<"login" | "register">("login");
+  const mode = signupOpen.data ? chosenMode : "login";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -112,20 +116,22 @@ export default function Login() {
               {mode === "login" ? "Sign In" : "Create Account"}
             </Button>
 
-            <div className="text-center">
-              <button
-                type="button"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                onClick={() => {
-                  setMode(mode === "login" ? "register" : "login");
-                  setError("");
-                }}
-              >
-                {mode === "login"
-                  ? "Don't have an account? Register"
-                  : "Already have an account? Sign in"}
-              </button>
-            </div>
+            {signupOpen.data ? (
+              <div className="text-center">
+                <button
+                  type="button"
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  onClick={() => {
+                    setMode(mode === "login" ? "register" : "login");
+                    setError("");
+                  }}
+                >
+                  {mode === "login"
+                    ? "Don't have an account? Register"
+                    : "Already have an account? Sign in"}
+                </button>
+              </div>
+            ) : null}
           </form>
         </CardContent>
       </Card>
