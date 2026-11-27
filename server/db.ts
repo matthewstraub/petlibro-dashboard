@@ -47,6 +47,14 @@ export async function createUser(data: { username: string; passwordHash: string;
   return await getUserByUsername(data.username);
 }
 
+/** Whether anyone has an account on this site yet. */
+export async function hasAnyUser() {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: users.id }).from(users).limit(1);
+  return result.length > 0;
+}
+
 export async function updateLastSignedIn(userId: number) {
   const db = await getDb();
   if (!db) return;

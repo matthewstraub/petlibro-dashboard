@@ -199,6 +199,8 @@ If you prefer not to use GitHub Actions:
 6. Select your fountain device from the dropdown
 7. Return to the Dashboard to see live data
 
+Sign-up closes as soon as this first account exists: the Register link goes away, and nobody else who finds the URL can make an account. To let someone else register later, add `ALLOW_SIGNUP=true` to the Render service, and remove it once they have.
+
 ### 5. Another Fountain in Another Place (Optional)
 
 Each site tracks one fountain. To track a second one, run this repo as a second Render service with its own database. The original site carries on unchanged, and both redeploy from `main`. Set `VITE_LOCATION_NAME` on each to tell them apart. Full steps: [`docs/second-site.md`](docs/second-site.md).
@@ -235,6 +237,7 @@ The app will be available at `http://localhost:3000`.
 | `JWT_SECRET` | Yes | Secret for signing session tokens |
 | `CRON_SECRET` | Yes | Secret for authenticating cron requests |
 | `PORT` | No | Server port (defaults to 3000) |
+| `ALLOW_SIGNUP` | No | Sign-up closes once the site has its first account. Set to `true` to let someone else register, and remove it once they have. Read at runtime, so a restart picks it up. |
 | `VITE_LOCATION_NAME` | No | Where this site's fountain is (e.g. `Office`), shown in the page title, sidebar, phone header and sign-in card. Read at build time. Unset, nothing is shown. |
 
 ---

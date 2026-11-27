@@ -28,6 +28,7 @@ import {
 } from "./db";
 import { PetlibroAPI, getOrCreateAPI } from "./petlibro-api";
 import { hashPassword, verifyPassword, createSessionToken } from "./auth";
+import { isSignupOpen } from "./signup";
 import { getLocalDateTime, getYesterdayLocal, getLocalDayBounds } from "./timezone";
 import { addDaysToKey, daysBetweenKeys, isDateKey, MAX_WINDOW_DAYS } from "@shared/analytics";
 import { parseDailyHistory } from "./backfill";
@@ -89,6 +90,9 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
 
+    // Lets the sign-in page hide Register once sign-up has closed.
+    signupOpen: publicProcedure.query(() => isSignupOpen()),
+
     login: publicProcedure
       .input(z.object({
         username: z.string().min(1),
@@ -122,6 +126,12 @@ export const appRouter = router({
         email: z.string().email().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        // Checked here as well as on the sign-in page, so a direct request
+        // can't create an account once sign-up has closed.
+        if (!(await isSignupOpen())) {
+          return { success: false, error: "Sign-up is closed on this site." };
+        }
+
         const existing = await getUserByUsername(input.username);
         if (existing) {
           return { success: false, error: "Username already taken" };
